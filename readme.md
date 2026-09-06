@@ -20,6 +20,24 @@ The default database is `data/jobs.db`. To use another path or query, set enviro
 DATABASE_PATH=./data/jobs.db SEARCH_QUERY="lokförare" npm run dev
 ```
 
+To try the Indeed adapter:
+
+```powershell
+$env:JOB_SOURCE = "indeed"
+npm run dev
+```
+
+Indeed may return a browser security check instead of job HTML. The adapter
+reports that clearly; it does not attempt to bypass the check. Järnvägsjobb is
+the default source.
+
+To use Platsbanken through Arbetsförmedlingen's public JobTech API:
+
+```powershell
+$env:JOB_SOURCE = "arbetsformedlingen"
+npm run dev
+```
+
 On Windows PowerShell:
 
 ```powershell
@@ -62,7 +80,7 @@ JobSource.search(query)
      SQLite
 ```
 
-- `src/sources/` contains source-specific fetching and parsing. Sources return `ScrapedJob` values and do not know about SQLite. `JarnvagsjobbSource` reads the HTML listing table from jarnvagsjobb.se.
+- `src/sources/` contains source-specific fetching and parsing. Sources return `ScrapedJob` values and do not know about SQLite. `JarnvagsjobbSource` reads jarnvagsjobb.se, `IndeedSource` parses Indeed result cards when the site provides accessible HTML, and `ArbetsformedlingenSource` uses the public JobTech API behind Platsbanken.
 - `src/scraper/ingestion.ts` validates source results and connects a source to the repository.
 - `src/database/` initializes SQLite and owns job persistence, including URL-based deduplication.
 - `src/types/job.ts` contains the normalized scraped and persisted job types.

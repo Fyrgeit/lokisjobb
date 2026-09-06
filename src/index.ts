@@ -2,6 +2,8 @@ import { getConfig } from './config/config.js';
 import { createDatabase } from './database/database.js';
 import { JobsRepository } from './database/jobs.js';
 import { ingestFromSource } from './scraper/ingestion.js';
+import { ArbetsformedlingenSource } from './sources/arbetsformedlingen-source.js';
+import { IndeedSource } from './sources/indeed-source.js';
 import { JarnvagsjobbSource } from './sources/jarnvagsjobb-source.js';
 
 async function main(): Promise<void> {
@@ -10,7 +12,12 @@ async function main(): Promise<void> {
     const config = getConfig();
     const database = createDatabase(config.databasePath);
     const repository = new JobsRepository(database);
-    const source = new JarnvagsjobbSource();
+    const source =
+        config.jobSource === 'indeed'
+            ? new IndeedSource()
+            : config.jobSource === 'arbetsformedlingen'
+              ? new ArbetsformedlingenSource()
+              : new JarnvagsjobbSource();
 
     try {
         console.log(`Starting job search with ${source.name} source...`);

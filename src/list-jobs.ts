@@ -3,7 +3,7 @@ import { createDatabase } from './database/database.js';
 import { JobsRepository } from './database/jobs.js';
 import type { Job } from './types/job.js';
 
-const descriptionLimit = 320;
+const descriptionLimit = 80;
 
 // Keep the database value complete, but make terminal output easy to scan.
 function formatDescription(description: string | null): string {
