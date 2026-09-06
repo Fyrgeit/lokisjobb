@@ -1,6 +1,6 @@
-import fs from "node:fs";
-import path from "node:path";
-import Database from "better-sqlite3";
+import fs from 'node:fs';
+import path from 'node:path';
+import Database from 'better-sqlite3';
 
 const schema = `
   CREATE TABLE IF NOT EXISTS jobs (
@@ -20,12 +20,14 @@ const schema = `
 `;
 
 export function createDatabase(databasePath: string): Database.Database {
-  if (databasePath !== ":memory:") {
-    fs.mkdirSync(path.dirname(path.resolve(databasePath)), { recursive: true });
-  }
+    if (databasePath !== ':memory:') {
+        fs.mkdirSync(path.dirname(path.resolve(databasePath)), {
+            recursive: true,
+        });
+    }
 
-  const database = new Database(databasePath);
-  database.pragma("foreign_keys = ON");
-  database.exec(schema);
-  return database;
+    const database = new Database(databasePath);
+    database.pragma('foreign_keys = ON');
+    database.exec(schema);
+    return database;
 }

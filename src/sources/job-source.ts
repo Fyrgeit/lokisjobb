@@ -1,6 +1,6 @@
-import type { ScrapedJob } from "../types/job.js";
+import type { ScrapedJob } from '../types/job.js';
 
 export interface JobSource {
-  name: string;
-  search(query: string): Promise<ScrapedJob[]>;
+    name: string;
+    search(query: string): Promise<ScrapedJob[]>;
 }
