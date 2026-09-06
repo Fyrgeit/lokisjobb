@@ -10,6 +10,8 @@ export interface IngestionSummary {
 }
 
 function isValidJob(job: ScrapedJob): boolean {
+    // Reject malformed source output before it reaches the repository. URL
+    // validation also prevents unusable links from entering the database.
     if (!job.title.trim() || !job.url.trim()) {
         return false;
     }
@@ -27,6 +29,7 @@ export async function ingestFromSource(
     query: string,
     repository: JobsRepository,
 ): Promise<IngestionSummary> {
+    // This is the only boundary where a source result becomes persisted data.
     const jobs = await source.search(query);
     const summary: IngestionSummary = {
         found: jobs.length,
@@ -41,6 +44,8 @@ export async function ingestFromSource(
             continue;
         }
 
+        // Trim the fields that are used for identity or display while keeping
+        // the source's optional values intact.
         const normalizedJob: ScrapedJob = {
             ...job,
             title: job.title.trim(),

@@ -10,6 +10,7 @@ const schema = `
     location TEXT,
     url TEXT NOT NULL UNIQUE,
     description TEXT,
+    application_deadline TEXT,
     discovered_at TEXT NOT NULL,
     last_seen_at TEXT NOT NULL,
     ai_score REAL,
@@ -19,7 +20,20 @@ const schema = `
   CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 `;
 
+// Existing local databases may have been created before newer columns existed.
+// Keep startup backwards-compatible by adding only missing columns.
+function migrateJobsTable(database: Database.Database): void {
+    const columns = database.prepare('PRAGMA table_info(jobs)').all() as Array<{
+        name: string;
+    }>;
+
+    if (!columns.some((column) => column.name === 'application_deadline')) {
+        database.exec('ALTER TABLE jobs ADD COLUMN application_deadline TEXT');
+    }
+}
+
 export function createDatabase(databasePath: string): Database.Database {
+    // SQLite does not create parent directories automatically.
     if (databasePath !== ':memory:') {
         fs.mkdirSync(path.dirname(path.resolve(databasePath)), {
             recursive: true,
@@ -27,7 +41,10 @@ export function createDatabase(databasePath: string): Database.Database {
     }
 
     const database = new Database(databasePath);
+    // This is harmless today, but keeps the database ready for relationships
+    // if related tables are introduced later.
     database.pragma('foreign_keys = ON');
     database.exec(schema);
+    migrateJobsTable(database);
     return database;
 }

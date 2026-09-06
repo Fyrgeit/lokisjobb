@@ -7,6 +7,8 @@ import type { ScrapedJob } from '../types/job.js';
 const databases: ReturnType<typeof createDatabase>[] = [];
 
 function createRepository(): JobsRepository {
+    // Each test gets an isolated database, so tests never depend on the local
+    // data/jobs.db file or on the order in which tests run.
     const database = createDatabase(':memory:');
     databases.push(database);
     return new JobsRepository(database);
@@ -18,6 +20,7 @@ const scrapedJob: ScrapedJob = {
     location: 'Stockholm',
     url: 'https://example.com/jobs/driver',
     description: 'Kör tåg i regional trafik.',
+    applicationDeadline: '2026-01-15',
 };
 
 afterEach(() => {
@@ -41,6 +44,7 @@ describe('JobsRepository.upsert', () => {
         assert.equal(job?.lastSeenAt, '2026-01-01T10:00:00.000Z');
         assert.equal(job?.status, 'new');
         assert.equal(job?.aiScore, null);
+        assert.equal(job?.applicationDeadline, '2026-01-15');
     });
 
     it('updates only last_seen_at for an existing URL', () => {
@@ -51,6 +55,8 @@ describe('JobsRepository.upsert', () => {
         repository.updateStatus(firstJob.id, 'interested');
         repository.updateAiScore(firstJob.id, 0.85);
 
+        // These values represent local decisions and must survive a source
+        // refresh even though source-owned fields are updated.
         const result = repository.upsert(
             { ...scrapedJob, title: 'Updated title from source' },
             '2026-01-02T10:00:00.000Z',

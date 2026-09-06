@@ -3,6 +3,8 @@ export interface Config {
     searchQuery: string;
 }
 
+// Keep configuration deliberately small: this application is local, so the
+// environment only needs to control where data is stored and what to search.
 export function getConfig(env: NodeJS.ProcessEnv = process.env): Config {
     return {
         databasePath: env.DATABASE_PATH ?? './data/jobs.db',

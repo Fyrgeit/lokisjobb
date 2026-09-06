@@ -1,6 +1,6 @@
 # Lokisjobb
 
-Lokisjobb is a local TypeScript foundation for finding and evaluating job listings. The initial version uses a mock source to demonstrate the complete flow without depending on a specific job website.
+Lokisjobb is a local TypeScript foundation for finding and evaluating job listings. It currently includes a source for the public job listing page at jarnvagsjobb.se.
 
 ## Prerequisites
 
@@ -31,11 +31,16 @@ npm run dev
 Other commands:
 
 ```bash
+npm run jobs
 npm test
 npm run build
 npm start
 npm run lint
 ```
+
+`npm run jobs` reads the persisted jobs from SQLite and prints them as text. Set
+`DATABASE_PATH` first if the database is stored somewhere other than
+`data/jobs.db`.
 
 Running the application more than once updates `last_seen_at` for the same URLs instead of creating duplicate rows. The SQLite database itself is ignored by Git.
 
@@ -57,10 +62,11 @@ JobSource.search(query)
      SQLite
 ```
 
-- `src/sources/` contains source-specific fetching and parsing. Sources return `ScrapedJob` values and do not know about SQLite.
+- `src/sources/` contains source-specific fetching and parsing. Sources return `ScrapedJob` values and do not know about SQLite. `JarnvagsjobbSource` reads the HTML listing table from jarnvagsjobb.se.
 - `src/scraper/ingestion.ts` validates source results and connects a source to the repository.
 - `src/database/` initializes SQLite and owns job persistence, including URL-based deduplication.
 - `src/types/job.ts` contains the normalized scraped and persisted job types.
+- `application_deadline` stores the source-provided latest application date when available.
 - AI evaluation is intentionally not implemented. A future evaluator can read persisted jobs and update `ai_score` through the repository.
 
 ## Adding a job source
@@ -70,3 +76,5 @@ JobSource.search(query)
 3. Use that source with `ingestFromSource` in the application entry point.
 
 The source should keep all website-specific selectors or API parsing inside its own module and should never import the database layer.
+
+The Järnvägsjobb source reads titles, companies, locations, deadlines, and links from the listing page, then fetches each detail page for the full job description. If an individual detail page cannot be fetched, the listing is still stored and a warning is printed. Detail pages are fetched sequentially to keep the scraper simple and polite.
