@@ -9,6 +9,7 @@ type JobRow = {
     company: string | null;
     location: string | null;
     url: string;
+    source_url: string;
     description: string | null;
     application_deadline: string | null;
     discovered_at: string;
@@ -26,6 +27,7 @@ function toJob(row: JobRow): Job {
         company: row.company,
         location: row.location,
         url: row.url,
+        sourceUrl: row.source_url,
         description: row.description,
         applicationDeadline: row.application_deadline,
         discoveredAt: row.discovered_at,
@@ -44,19 +46,37 @@ export class JobsRepository {
     ): UpsertResult {
         // URL is the stable identity for a listing. It prevents the same job
         // from being inserted again when a later search sees it.
-        const existing = this.database
+        const canonicalJob = this.database
             .prepare('SELECT id FROM jobs WHERE url = ?')
             .get(scrapedJob.url) as { id: number } | undefined;
+        const sourceJob = this.database
+            .prepare('SELECT id FROM jobs WHERE source_url = ? AND url <> ?')
+            .get(scrapedJob.sourceUrl, scrapedJob.url) as
+            | { id: number }
+            | undefined;
+
+        // A previous ingestion may have stored the source page as the URL.
+        // Once a canonical application URL is known, discard that duplicate
+        // row and keep the canonical row as the job's identity.
+        if (canonicalJob && sourceJob) {
+            this.database
+                .prepare('DELETE FROM jobs WHERE id = ?')
+                .run(sourceJob.id);
+        }
+
+        const existing = canonicalJob ?? sourceJob;
 
         if (existing) {
             // Refresh source-owned fields, but leave discovered_at, status, and
             // ai_score untouched so local decisions survive re-ingestion.
             this.database
                 .prepare(
-                    'UPDATE jobs SET description = ?, last_seen_at = ?, application_deadline = ? WHERE id = ?',
+                    'UPDATE jobs SET url = ?, description = ?, source_url = ?, last_seen_at = ?, application_deadline = ? WHERE id = ?',
                 )
                 .run(
+                    scrapedJob.url,
                     scrapedJob.description,
+                    scrapedJob.sourceUrl,
                     now,
                     scrapedJob.applicationDeadline,
                     existing.id,
@@ -69,14 +89,15 @@ export class JobsRepository {
         this.database
             .prepare(
                 `INSERT INTO jobs
-          (title, company, location, url, description, application_deadline, discovered_at, last_seen_at, ai_score, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, 'new')`,
+          (title, company, location, url, source_url, description, application_deadline, discovered_at, last_seen_at, ai_score, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'new')`,
             )
             .run(
                 scrapedJob.title,
                 scrapedJob.company,
                 scrapedJob.location,
                 scrapedJob.url,
+                scrapedJob.sourceUrl,
                 scrapedJob.description,
                 scrapedJob.applicationDeadline,
                 now,

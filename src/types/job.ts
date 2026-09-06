@@ -7,6 +7,7 @@ export interface ScrapedJob {
     company: string | null;
     location: string | null;
     url: string;
+    sourceUrl: string;
     description: string | null;
     applicationDeadline: string | null;
 }

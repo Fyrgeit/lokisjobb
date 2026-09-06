@@ -29,6 +29,8 @@ describe('parseJobbsafariJobs', () => {
                 company: 'Ren Labs Stockholm AB',
                 location: 'Stockholm',
                 url: 'https://jobbsafari.se/lediga-jobb/lokforare-20541239',
+                sourceUrl:
+                    'https://jobbsafari.se/lediga-jobb/lokforare-20541239',
                 description: null,
                 applicationDeadline: '2026-10-02',
             },

@@ -43,6 +43,7 @@ export function parseIndeedJobs(
                     .text(),
             ),
             url: new URL(href, sourceUrl).toString(),
+            sourceUrl: new URL(href, sourceUrl).toString(),
             description: cleanText(card.find('.job-snippet').first().text()),
             applicationDeadline: null,
         });

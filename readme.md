@@ -52,6 +52,17 @@ $env:JOB_SOURCE = "arbetsformedlingen"
 npm run dev
 ```
 
+To run every configured source in sequence:
+
+```powershell
+$env:JOB_SOURCE = "all"
+npm run dev
+```
+
+Each source gets its own summary and the command prints totals at the end. A
+source failure is reported and skipped so that a blocked source such as Indeed
+does not stop the other sources.
+
 On Windows PowerShell:
 
 ```powershell
@@ -75,6 +86,11 @@ npm run lint
 `data/jobs.db`.
 
 Running the application more than once updates `last_seen_at` for the same URLs instead of creating duplicate rows. The SQLite database itself is ignored by Git.
+
+Jobs store two links: `url` is the canonical application destination used for
+deduplication, while `source_url` points back to the listing or detail page
+where the job was found. Known Jobylon URL variants are normalized to the same
+vacancy identity, so syndicated listings from multiple sources can converge.
 
 ## Architecture
 

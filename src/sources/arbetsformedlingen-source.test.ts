@@ -22,6 +22,8 @@ describe('mapArbetsformedlingenHit', () => {
             company: 'Luossavaara-Kiirunavaara Aktiebolag',
             location: 'Gällivare',
             url: 'https://arbetsformedlingen.se/platsbanken/annonser/31440607',
+            sourceUrl:
+                'https://arbetsformedlingen.se/platsbanken/annonser/31440607',
             description: 'Kör malmtåg längs Malmbanan.',
             applicationDeadline: '2026-09-27',
         });

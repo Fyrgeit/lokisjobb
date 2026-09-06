@@ -56,6 +56,7 @@ export function parseJobblandJobs(
                 company,
                 location: cleanText(location),
                 url: new URL(href, sourceUrl).toString(),
+                sourceUrl: new URL(href, sourceUrl).toString(),
                 description: null,
                 applicationDeadline: null,
             });
@@ -124,6 +125,12 @@ export class JobblandSource implements JobSource {
                 const detailHtml = await detailResponse.text();
                 const detailPage = load(detailHtml);
                 job.description = parseJobblandDescription(detailHtml);
+                const applyUrl = detailPage('a.apply--button')
+                    .first()
+                    .attr('href');
+                if (applyUrl) {
+                    job.url = new URL(applyUrl, job.sourceUrl).toString();
+                }
                 job.applicationDeadline = parseDeadline(
                     cleanText(detailPage('body').text()) ?? '',
                 );

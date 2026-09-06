@@ -29,6 +29,7 @@ function formatJob(job: Job): string {
         `Discovered: ${job.discoveredAt}`,
         `Last seen: ${job.lastSeenAt}`,
         `URL: ${job.url}`,
+        `Source URL: ${job.sourceUrl}`,
         `Description: ${formatDescription(job.description)}`,
     ].join('\n');
 }

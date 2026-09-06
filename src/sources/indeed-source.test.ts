@@ -19,6 +19,7 @@ describe('parseIndeedJobs', () => {
                 company: 'Green Cargo',
                 location: 'Sundsvall',
                 url: 'https://se.indeed.com/viewjob?jk=abc',
+                sourceUrl: 'https://se.indeed.com/viewjob?jk=abc',
                 description: 'Kör godståg i regional trafik.',
                 applicationDeadline: null,
             },

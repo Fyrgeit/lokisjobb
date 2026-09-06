@@ -11,6 +11,7 @@ type JobbsafariResult = {
     company?: { name?: string };
     locations?: Array<{ name?: string }>;
     description?: string | { text?: string };
+    apply?: { href?: string };
 };
 
 type JobbsafariPageData = {
@@ -69,8 +70,10 @@ function toJob(result: JobbsafariResult, sourceUrl: string): ScrapedJob | null {
         company: cleanText(result.company?.name),
         location: cleanText(result.locations?.[0]?.name),
         url: new URL(`/lediga-jobb/${result.slug}`, sourceUrl).toString(),
+        sourceUrl: new URL(`/lediga-jobb/${result.slug}`, sourceUrl).toString(),
         description: getDescription(result.description),
         applicationDeadline: formatDeadline(result.endDate),
+        ...(result.apply?.href ? { url: result.apply.href } : {}),
     };
 }
 
@@ -108,6 +111,7 @@ function parseJobbsafariDetail(
             getDescription(detail.description) ?? existingJob.description,
         applicationDeadline:
             formatDeadline(detail.endDate) ?? existingJob.applicationDeadline,
+        ...(detail.apply?.href ? { url: detail.apply.href } : {}),
     };
 }
 
@@ -139,7 +143,9 @@ export class JobbsafariSource implements JobSource {
         // description and can also correct summary metadata.
         for (const job of jobs) {
             try {
-                const detailResponse = await this.fetchImpl(job.url, {
+                // The apply URL may be mailto: or an external ATS link. The
+                // Jobbsafari detail page is always the sourceUrl.
+                const detailResponse = await this.fetchImpl(job.sourceUrl, {
                     headers: {
                         Accept: 'text/html',
                         'User-Agent':

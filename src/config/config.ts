@@ -6,7 +6,8 @@ export interface Config {
         | 'indeed'
         | 'arbetsformedlingen'
         | 'jobbsafari'
-        | 'jobbland';
+        | 'jobbland'
+        | 'all';
 }
 
 // Keep configuration deliberately small: this application is local, so the
@@ -24,6 +25,8 @@ export function getConfig(env: NodeJS.ProcessEnv = process.env): Config {
                     ? 'jobbsafari'
                     : env.JOB_SOURCE === 'jobbland'
                       ? 'jobbland'
-                      : 'jarnvagsjobb',
+                      : env.JOB_SOURCE === 'all'
+                        ? 'all'
+                        : 'jarnvagsjobb',
     };
 }

@@ -25,6 +25,7 @@ describe('parseJarnvagsjobbJobs', () => {
                 company: 'Green Cargo',
                 location: 'Sundsvall',
                 url: 'https://jarnvagsjobb.se/lediga-jobb/lokforare/',
+                sourceUrl: 'https://jarnvagsjobb.se/lediga-jobb/lokforare/',
                 description: null,
                 applicationDeadline: '2026-09-20',
             },
@@ -76,7 +77,9 @@ describe('JarnvagsjobbSource', () => {
             </tbody></table>
         `;
         const detailHtml = `
-            <article><div class="entry-content">
+                <article><div class="single__vacancy-meta__cta">
+                    <a class="button" href="https://emp.jobylon.com/applications/jobs/380014/create/">Sök jobbet här</a>
+                </div><div class="entry-content">
                 <h1>Lokförare</h1>
                 <div class="single__meta">Metadata</div>
                 <p>Detta är den fullständiga annonsen.</p>
@@ -97,6 +100,14 @@ describe('JarnvagsjobbSource', () => {
         assert.equal(
             jobs[0]?.description,
             'Detta är den fullständiga annonsen.',
+        );
+        assert.equal(
+            jobs[0]?.url,
+            'https://emp.jobylon.com/applications/jobs/380014/create/',
+        );
+        assert.equal(
+            jobs[0]?.sourceUrl,
+            'https://jarnvagsjobb.se/lediga-jobb/lokforare/',
         );
     });
 });

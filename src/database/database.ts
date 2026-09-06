@@ -9,6 +9,7 @@ const schema = `
     company TEXT,
     location TEXT,
     url TEXT NOT NULL UNIQUE,
+    source_url TEXT NOT NULL,
     description TEXT,
     application_deadline TEXT,
     discovered_at TEXT NOT NULL,
@@ -29,6 +30,15 @@ function migrateJobsTable(database: Database.Database): void {
 
     if (!columns.some((column) => column.name === 'application_deadline')) {
         database.exec('ALTER TABLE jobs ADD COLUMN application_deadline TEXT');
+    }
+
+    if (!columns.some((column) => column.name === 'source_url')) {
+        // Existing rows used url for both purposes. Preserve that value as the
+        // source link until a later ingestion discovers a real apply URL.
+        database.exec(
+            "ALTER TABLE jobs ADD COLUMN source_url TEXT NOT NULL DEFAULT ''",
+        );
+        database.exec("UPDATE jobs SET source_url = url WHERE source_url = ''");
     }
 }
 

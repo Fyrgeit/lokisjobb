@@ -24,6 +24,18 @@ function isValidJob(job: ScrapedJob): boolean {
     }
 }
 
+function canonicalizeApplicationUrl(url: string): string {
+    // Jobylon exposes the same vacancy through both /jobs/{id}-... and
+    // /applications/jobs/{id}/create/. Collapse those forms so syndicated
+    // listings share one database identity while retaining sourceUrl.
+    const jobylonMatch = url.match(
+        /^https:\/\/emp\.jobylon\.com\/(?:jobs\/(\d+)[^/]*|applications\/jobs\/(\d+))/i,
+    );
+    return jobylonMatch
+        ? `https://emp.jobylon.com/jobs/${jobylonMatch[1] ?? jobylonMatch[2]}`
+        : url;
+}
+
 export async function ingestFromSource(
     source: JobSource,
     query: string,
@@ -49,7 +61,8 @@ export async function ingestFromSource(
         const normalizedJob: ScrapedJob = {
             ...job,
             title: job.title.trim(),
-            url: job.url.trim(),
+            url: canonicalizeApplicationUrl(job.url.trim()),
+            sourceUrl: job.sourceUrl.trim(),
         };
         const result = repository.upsert(normalizedJob);
         summary[result === 'inserted' ? 'added' : 'updated'] += 1;

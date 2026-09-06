@@ -49,6 +49,7 @@ export function parseJarnvagsjobbJobs(
             company: cleanText(row.find('td.list-column.company').text()),
             location: cleanText(row.find('td.list-column.city').text()),
             url: new URL(href, sourceUrl).toString(),
+            sourceUrl: new URL(href, sourceUrl).toString(),
             description: null,
             applicationDeadline: cleanText(
                 row.find('td.list-column.apply_by').text(),
@@ -104,9 +105,15 @@ export class JarnvagsjobbSource implements JobSource {
                     continue;
                 }
 
-                job.description = parseJarnvagsjobbDescription(
-                    await detailResponse.text(),
-                );
+                const detailHtml = await detailResponse.text();
+                job.description = parseJarnvagsjobbDescription(detailHtml);
+                const detailPage = load(detailHtml);
+                const applyUrl = detailPage(
+                    '.single__vacancy-meta__cta a.button',
+                ).attr('href');
+                if (applyUrl) {
+                    job.url = new URL(applyUrl, job.sourceUrl).toString();
+                }
             } catch (error: unknown) {
                 const message =
                     error instanceof Error ? error.message : String(error);

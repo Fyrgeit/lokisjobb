@@ -19,6 +19,7 @@ const scrapedJob: ScrapedJob = {
     company: 'Nordic Rail AB',
     location: 'Stockholm',
     url: 'https://example.com/jobs/driver',
+    sourceUrl: 'https://example.com/jobs/driver',
     description: 'Kör tåg i regional trafik.',
     applicationDeadline: '2026-01-15',
 };
@@ -70,5 +71,32 @@ describe('JobsRepository.upsert', () => {
         assert.equal(job?.title, 'Lokförare');
         assert.equal(job?.status, 'interested');
         assert.equal(job?.aiScore, 0.85);
+    });
+
+    it('removes an older source row when a canonical duplicate is found', () => {
+        const repository = createRepository();
+        const canonicalUrl = 'https://emp.jobylon.com/jobs/380014';
+        const firstSourceUrl =
+            'https://jarnvagsjobb.se/lediga-jobb/green-cargo/';
+        const secondSourceUrl = 'https://jobbland.se/jobb/green-cargo-20548873';
+
+        repository.upsert(
+            { ...scrapedJob, url: canonicalUrl, sourceUrl: firstSourceUrl },
+            '2026-01-01T10:00:00.000Z',
+        );
+        repository.upsert(
+            { ...scrapedJob, url: secondSourceUrl, sourceUrl: secondSourceUrl },
+            '2026-01-01T10:00:00.000Z',
+        );
+        repository.upsert(
+            { ...scrapedJob, url: canonicalUrl, sourceUrl: secondSourceUrl },
+            '2026-01-02T10:00:00.000Z',
+        );
+
+        assert.equal(repository.list().length, 1);
+        assert.equal(
+            repository.findByUrl(canonicalUrl)?.lastSeenAt,
+            '2026-01-02T10:00:00.000Z',
+        );
     });
 });
