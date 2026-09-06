@@ -31,6 +31,20 @@ Indeed may return a browser security check instead of job HTML. The adapter
 reports that clearly; it does not attempt to bypass the check. Järnvägsjobb is
 the default source.
 
+To use Jobbsafari:
+
+```powershell
+$env:JOB_SOURCE = "jobbsafari"
+npm run dev
+```
+
+To use Jobbland:
+
+```powershell
+$env:JOB_SOURCE = "jobbland"
+npm run dev
+```
+
 To use Platsbanken through Arbetsförmedlingen's public JobTech API:
 
 ```powershell
@@ -80,7 +94,7 @@ JobSource.search(query)
      SQLite
 ```
 
-- `src/sources/` contains source-specific fetching and parsing. Sources return `ScrapedJob` values and do not know about SQLite. `JarnvagsjobbSource` reads jarnvagsjobb.se, `IndeedSource` parses Indeed result cards when the site provides accessible HTML, and `ArbetsformedlingenSource` uses the public JobTech API behind Platsbanken.
+- `src/sources/` contains source-specific fetching and parsing. Sources return `ScrapedJob` values and do not know about SQLite. `JarnvagsjobbSource` reads jarnvagsjobb.se, `IndeedSource` parses Indeed result cards when the site provides accessible HTML, `ArbetsformedlingenSource` uses the public JobTech API behind Platsbanken, `JobbsafariSource` reads Jobbsafari's embedded search data and detail pages, and `JobblandSource` reads Jobbland search cards and detail pages.
 - `src/scraper/ingestion.ts` validates source results and connects a source to the repository.
 - `src/database/` initializes SQLite and owns job persistence, including URL-based deduplication.
 - `src/types/job.ts` contains the normalized scraped and persisted job types.

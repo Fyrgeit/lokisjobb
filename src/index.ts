@@ -5,6 +5,8 @@ import { ingestFromSource } from './scraper/ingestion.js';
 import { ArbetsformedlingenSource } from './sources/arbetsformedlingen-source.js';
 import { IndeedSource } from './sources/indeed-source.js';
 import { JarnvagsjobbSource } from './sources/jarnvagsjobb-source.js';
+import { JobblandSource } from './sources/jobbland-source.js';
+import { JobbsafariSource } from './sources/jobbsafari-source.js';
 
 async function main(): Promise<void> {
     // The CLI composes the application: configuration, database, source, and
@@ -17,7 +19,11 @@ async function main(): Promise<void> {
             ? new IndeedSource()
             : config.jobSource === 'arbetsformedlingen'
               ? new ArbetsformedlingenSource()
-              : new JarnvagsjobbSource();
+              : config.jobSource === 'jobbsafari'
+                ? new JobbsafariSource()
+                : config.jobSource === 'jobbland'
+                  ? new JobblandSource()
+                  : new JarnvagsjobbSource();
 
     try {
         console.log(`Starting job search with ${source.name} source...`);

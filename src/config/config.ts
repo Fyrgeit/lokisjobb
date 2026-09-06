@@ -1,7 +1,12 @@
 export interface Config {
     databasePath: string;
     searchQuery: string;
-    jobSource: 'jarnvagsjobb' | 'indeed' | 'arbetsformedlingen';
+    jobSource:
+        | 'jarnvagsjobb'
+        | 'indeed'
+        | 'arbetsformedlingen'
+        | 'jobbsafari'
+        | 'jobbland';
 }
 
 // Keep configuration deliberately small: this application is local, so the
@@ -15,6 +20,10 @@ export function getConfig(env: NodeJS.ProcessEnv = process.env): Config {
                 ? 'indeed'
                 : env.JOB_SOURCE === 'arbetsformedlingen'
                   ? 'arbetsformedlingen'
-                  : 'jarnvagsjobb',
+                  : env.JOB_SOURCE === 'jobbsafari'
+                    ? 'jobbsafari'
+                    : env.JOB_SOURCE === 'jobbland'
+                      ? 'jobbland'
+                      : 'jarnvagsjobb',
     };
 }
