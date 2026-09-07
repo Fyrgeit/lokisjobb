@@ -1,13 +1,6 @@
 export interface Config {
     databasePath: string;
     searchQuery: string;
-    jobSource:
-        | 'jarnvagsjobb'
-        | 'indeed'
-        | 'arbetsformedlingen'
-        | 'jobbsafari'
-        | 'jobbland'
-        | 'all';
 }
 
 // Keep configuration deliberately small: this application is local, so the
@@ -16,17 +9,5 @@ export function getConfig(env: NodeJS.ProcessEnv = process.env): Config {
     return {
         databasePath: env.DATABASE_PATH ?? './data/jobs.db',
         searchQuery: env.SEARCH_QUERY ?? 'lokförare',
-        jobSource:
-            env.JOB_SOURCE === 'indeed'
-                ? 'indeed'
-                : env.JOB_SOURCE === 'arbetsformedlingen'
-                  ? 'arbetsformedlingen'
-                  : env.JOB_SOURCE === 'jobbsafari'
-                    ? 'jobbsafari'
-                    : env.JOB_SOURCE === 'jobbland'
-                      ? 'jobbland'
-                      : env.JOB_SOURCE === 'all'
-                        ? 'all'
-                        : 'jarnvagsjobb',
     };
 }

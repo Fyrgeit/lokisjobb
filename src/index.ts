@@ -3,35 +3,19 @@ import { createDatabase } from './database/database.js';
 import { JobsRepository } from './database/jobs.js';
 import { ingestFromSource } from './scraper/ingestion.js';
 import { ArbetsformedlingenSource } from './sources/arbetsformedlingen-source.js';
-import { IndeedSource } from './sources/indeed-source.js';
 import { JarnvagsjobbSource } from './sources/jarnvagsjobb-source.js';
 import { JobblandSource } from './sources/jobbland-source.js';
 import { JobbsafariSource } from './sources/jobbsafari-source.js';
 import type { JobSource } from './sources/job-source.js';
 
-function createSources(jobSource: string): JobSource[] {
-    if (jobSource === 'all') {
-        // Keep this list explicit so adding a source is visible at the CLI
-        // boundary and the order of network requests stays predictable.
-        return [
-            new JarnvagsjobbSource(),
-            new ArbetsformedlingenSource(),
-            new JobblandSource(),
-            new JobbsafariSource(),
-            new IndeedSource(),
-        ];
-    }
-
+function createSources(): JobSource[] {
+    // Keep the registry explicit so adding a source is visible at the CLI
+    // boundary and the order of network requests stays predictable.
     return [
-        jobSource === 'indeed'
-            ? new IndeedSource()
-            : jobSource === 'arbetsformedlingen'
-              ? new ArbetsformedlingenSource()
-              : jobSource === 'jobbsafari'
-                ? new JobbsafariSource()
-                : jobSource === 'jobbland'
-                  ? new JobblandSource()
-                  : new JarnvagsjobbSource(),
+        new JarnvagsjobbSource(),
+        new ArbetsformedlingenSource(),
+        new JobblandSource(),
+        new JobbsafariSource(),
     ];
 }
 
@@ -41,7 +25,7 @@ async function main(): Promise<void> {
     const config = getConfig();
     const database = createDatabase(config.databasePath);
     const repository = new JobsRepository(database);
-    const sources = createSources(config.jobSource);
+    const sources = createSources();
 
     try {
         const totals = { found: 0, added: 0, updated: 0, skipped: 0 };
