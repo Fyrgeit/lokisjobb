@@ -1,6 +1,10 @@
 import { load } from 'cheerio';
 import type { ScrapedJob } from '../types/job.js';
 import type { JobSource } from './job-source.js';
+import {
+    availabilityFromResponse,
+    checkApplicationAvailability,
+} from './availability.js';
 
 export const jarnvagsjobbListingUrl =
     'https://jarnvagsjobb.se/jobba-inom-jarnvagen/lediga-jobb-inom-jarnvagsbranschen/';
@@ -102,6 +106,9 @@ export class JarnvagsjobbSource implements JobSource {
                 });
 
                 if (!detailResponse.ok) {
+                    job.availability = availabilityFromResponse(
+                        detailResponse.status,
+                    );
                     continue;
                 }
 
@@ -113,6 +120,12 @@ export class JarnvagsjobbSource implements JobSource {
                 ).attr('href');
                 if (applyUrl) {
                     job.url = new URL(applyUrl, job.sourceUrl).toString();
+                    job.availability = await checkApplicationAvailability(
+                        this.fetchImpl,
+                        job.url,
+                    );
+                } else {
+                    job.availability = 'active';
                 }
             } catch (error: unknown) {
                 const message =

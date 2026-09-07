@@ -35,6 +35,7 @@ describe('JobsRepository.upsert', () => {
         const repository = createRepository();
         const result = repository.upsert(
             scrapedJob,
+            'test-source',
             '2026-01-01T10:00:00.000Z',
         );
         const job = repository.findByUrl(scrapedJob.url);
@@ -46,11 +47,25 @@ describe('JobsRepository.upsert', () => {
         assert.equal(job?.status, 'new');
         assert.equal(job?.aiScore, null);
         assert.equal(job?.applicationDeadline, '2026-01-15');
+        assert.deepEqual(job?.sources, [
+            {
+                name: 'test-source',
+                url: scrapedJob.sourceUrl,
+                firstSeenAt: '2026-01-01T10:00:00.000Z',
+                lastSeenAt: '2026-01-01T10:00:00.000Z',
+                availability: 'active',
+                checkedAt: '2026-01-01T10:00:00.000Z',
+            },
+        ]);
     });
 
     it('updates only last_seen_at for an existing URL', () => {
         const repository = createRepository();
-        repository.upsert(scrapedJob, '2026-01-01T10:00:00.000Z');
+        repository.upsert(
+            scrapedJob,
+            'first-source',
+            '2026-01-01T10:00:00.000Z',
+        );
         const firstJob = repository.findByUrl(scrapedJob.url);
         assert.ok(firstJob);
         repository.updateStatus(firstJob.id, 'interested');
@@ -60,6 +75,7 @@ describe('JobsRepository.upsert', () => {
         // refresh even though source-owned fields are updated.
         const result = repository.upsert(
             { ...scrapedJob, title: 'Updated title from source' },
+            'first-source',
             '2026-01-02T10:00:00.000Z',
         );
         const job = repository.findByUrl(scrapedJob.url);
@@ -82,14 +98,17 @@ describe('JobsRepository.upsert', () => {
 
         repository.upsert(
             { ...scrapedJob, url: canonicalUrl, sourceUrl: firstSourceUrl },
+            'jarnvagsjobb.se',
             '2026-01-01T10:00:00.000Z',
         );
         repository.upsert(
             { ...scrapedJob, url: secondSourceUrl, sourceUrl: secondSourceUrl },
+            'jobbland.se',
             '2026-01-01T10:00:00.000Z',
         );
         repository.upsert(
             { ...scrapedJob, url: canonicalUrl, sourceUrl: secondSourceUrl },
+            'jobbland.se',
             '2026-01-02T10:00:00.000Z',
         );
 
@@ -98,5 +117,25 @@ describe('JobsRepository.upsert', () => {
             repository.findByUrl(canonicalUrl)?.lastSeenAt,
             '2026-01-02T10:00:00.000Z',
         );
+        assert.equal(repository.findByUrl(canonicalUrl)?.sources.length, 2);
+    });
+
+    it('derives closed availability when a source reports a closed vacancy', () => {
+        const repository = createRepository();
+        repository.upsert(
+            scrapedJob,
+            'test-source',
+            '2026-01-01T10:00:00.000Z',
+        );
+        repository.upsert(
+            { ...scrapedJob, availability: 'closed' },
+            'test-source',
+            '2026-01-02T10:00:00.000Z',
+        );
+
+        const job = repository.findByUrl(scrapedJob.url);
+        assert.equal(job?.availability, 'closed');
+        assert.equal(job?.status, 'new');
+        assert.equal(job?.sources[0]?.availability, 'closed');
     });
 });

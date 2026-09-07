@@ -9,6 +9,16 @@ export interface IngestionSummary {
     skipped: number;
 }
 
+// This employer currently represents an AI matching service rather than a
+// direct vacancy, so exclude it consistently across every source.
+const ignoredCompanies = new Set(['ren labs stockholm ab']);
+
+function isIgnoredCompany(company: string | null): boolean {
+    return (
+        company !== null && ignoredCompanies.has(company.trim().toLowerCase())
+    );
+}
+
 function isValidJob(job: ScrapedJob): boolean {
     // Reject malformed source output before it reaches the repository. URL
     // validation also prevents unusable links from entering the database.
@@ -24,16 +34,36 @@ function isValidJob(job: ScrapedJob): boolean {
     }
 }
 
-function canonicalizeApplicationUrl(url: string): string {
+export function canonicalizeApplicationUrl(url: string): string {
+    const parsedUrl = new URL(url);
+
+    // Application links often include source-specific tracking parameters.
+    // They describe the click, not the vacancy, so they must not create new
+    // job identities across aggregators.
+    for (const parameter of [...parsedUrl.searchParams.keys()]) {
+        if (
+            parameter.toLowerCase().startsWith('utm_') ||
+            parameter.toLowerCase() === 'promotion'
+        ) {
+            parsedUrl.searchParams.delete(parameter);
+        }
+    }
+
+    if (parsedUrl.hostname === 'jobb.sj.se') {
+        parsedUrl.search = '';
+    }
+
     // Jobylon exposes the same vacancy through both /jobs/{id}-... and
     // /applications/jobs/{id}/create/. Collapse those forms so syndicated
     // listings share one database identity while retaining sourceUrl.
-    const jobylonMatch = url.match(
-        /^https:\/\/emp\.jobylon\.com\/(?:jobs\/(\d+)[^/]*|applications\/jobs\/(\d+))/i,
-    );
+    const jobylonMatch = parsedUrl
+        .toString()
+        .match(
+            /^https:\/\/emp\.jobylon\.com\/(?:jobs\/(\d+)[^/]*|applications\/jobs\/(\d+))/i,
+        );
     return jobylonMatch
         ? `https://emp.jobylon.com/jobs/${jobylonMatch[1] ?? jobylonMatch[2]}`
-        : url;
+        : parsedUrl.toString();
 }
 
 export async function ingestFromSource(
@@ -51,7 +81,7 @@ export async function ingestFromSource(
     };
 
     for (const job of jobs) {
-        if (!isValidJob(job)) {
+        if (isIgnoredCompany(job.company) || !isValidJob(job)) {
             summary.skipped += 1;
             continue;
         }
@@ -64,7 +94,7 @@ export async function ingestFromSource(
             url: canonicalizeApplicationUrl(job.url.trim()),
             sourceUrl: job.sourceUrl.trim(),
         };
-        const result = repository.upsert(normalizedJob);
+        const result = repository.upsert(normalizedJob, source.name);
         summary[result === 'inserted' ? 'added' : 'updated'] += 1;
     }
 

@@ -12,6 +12,7 @@ type JobSearchHit = {
     application_details?: { url?: string };
     employer?: { name?: string };
     workplace_address?: { municipality?: string; city?: string };
+    removed?: boolean;
 };
 
 type JobSearchResponse = {
@@ -46,6 +47,7 @@ export function mapArbetsformedlingenHit(hit: JobSearchHit): ScrapedJob | null {
             : {}),
         description: cleanText(hit.description?.text),
         applicationDeadline: formatDeadline(hit.application_deadline),
+        availability: hit.removed ? 'closed' : 'active',
     };
 }
 

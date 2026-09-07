@@ -1,6 +1,7 @@
 import { load } from 'cheerio';
 import type { ScrapedJob } from '../types/job.js';
 import type { JobSource } from './job-source.js';
+import { availabilityFromResponse } from './availability.js';
 
 export const jobbsafariSearchUrl = 'https://jobbsafari.se/lediga-jobb';
 
@@ -157,6 +158,11 @@ export class JobbsafariSource implements JobSource {
                     Object.assign(
                         job,
                         parseJobbsafariDetail(await detailResponse.text(), job),
+                    );
+                    job.availability = 'active';
+                } else {
+                    job.availability = availabilityFromResponse(
+                        detailResponse.status,
                     );
                 }
             } catch (error: unknown) {

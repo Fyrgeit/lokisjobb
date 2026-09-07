@@ -1,6 +1,10 @@
 import { load } from 'cheerio';
 import type { ScrapedJob } from '../types/job.js';
 import type { JobSource } from './job-source.js';
+import {
+    availabilityFromResponse,
+    checkApplicationAvailability,
+} from './availability.js';
 
 export const jobblandSearchUrl =
     'https://jobbland.se/lediga-jobb/yrke/lokforare';
@@ -119,6 +123,9 @@ export class JobblandSource implements JobSource {
                 });
 
                 if (!detailResponse.ok) {
+                    job.availability = availabilityFromResponse(
+                        detailResponse.status,
+                    );
                     continue;
                 }
 
@@ -130,6 +137,12 @@ export class JobblandSource implements JobSource {
                     .attr('href');
                 if (applyUrl) {
                     job.url = new URL(applyUrl, job.sourceUrl).toString();
+                    job.availability = await checkApplicationAvailability(
+                        this.fetchImpl,
+                        job.url,
+                    );
+                } else {
+                    job.availability = 'active';
                 }
                 job.applicationDeadline = parseDeadline(
                     cleanText(detailPage('body').text()) ?? '',

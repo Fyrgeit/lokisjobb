@@ -24,12 +24,13 @@ function formatJob(job: Job): string {
         `Company: ${job.company ?? 'Not specified'}`,
         `Location: ${job.location ?? 'Not specified'}`,
         `Application deadline: ${job.applicationDeadline ?? 'Not specified'}`,
+        `Availability: ${job.availability}`,
         `Status: ${job.status}`,
         `AI score: ${job.aiScore ?? 'Not evaluated'}`,
         `Discovered: ${job.discoveredAt}`,
         `Last seen: ${job.lastSeenAt}`,
         `URL: ${job.url}`,
-        `Source URL: ${job.sourceUrl}`,
+        `Sources (${job.sources.length}): ${job.sources.map((source) => `${source.name} [${source.availability}] (${source.url})`).join(', ') || 'None'}`,
         `Description: ${formatDescription(job.description)}`,
     ].join('\n');
 }

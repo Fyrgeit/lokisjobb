@@ -87,10 +87,16 @@ npm run lint
 
 Running the application more than once updates `last_seen_at` for the same URLs instead of creating duplicate rows. The SQLite database itself is ignored by Git.
 
-Jobs store two links: `url` is the canonical application destination used for
-deduplication, while `source_url` points back to the listing or detail page
-where the job was found. Known Jobylon URL variants are normalized to the same
-vacancy identity, so syndicated listings from multiple sources can converge.
+Jobs use `url` as the canonical application destination for deduplication. The
+`job_sources` table stores every listing or detail page where the job was found,
+including each source's first and latest sighting times. Known Jobylon URL
+variants are normalized to the same vacancy identity, so syndicated listings
+from multiple sources converge without losing provenance.
+
+Availability is separate from your personal job `status`. Each source is
+tracked as `active`, `closed`, or `unknown`; a job is `closed` only when all
+known sources report it closed. Closed jobs remain stored for history and are
+not automatically marked `rejected`.
 
 ## Architecture
 
