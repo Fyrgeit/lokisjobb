@@ -35,7 +35,7 @@ function formatJob(job: Job): string {
     ].join('\n');
 }
 
-function main(): void {
+export function getJobs() {
     const config = getConfig();
     const database = createDatabase(config.databasePath);
 
@@ -45,14 +45,27 @@ function main(): void {
         const jobs = new JobsRepository(database).list();
 
         if (jobs.length === 0) {
-            console.log('No jobs found. Run npm run dev to ingest jobs.');
-            return;
+            return { error: 'No jobs found. Run npm run dev to ingest jobs.' };
         }
 
-        console.log(`Jobs (${jobs.length})\n`);
-        console.log(jobs.map(formatJob).join('\n\n---\n\n'));
+        return { jobs: jobs };
     } finally {
         database.close();
+    }
+}
+
+function main(): void {
+    const jobs = getJobs();
+
+    if (jobs.error) {
+        console.log(jobs.error);
+    }
+
+    if (jobs.jobs) {
+        console.log(
+            `Jobs (${jobs.jobs.length})\n` +
+                jobs.jobs.map(formatJob).join('\n\n---\n\n'),
+        );
     }
 }
 
