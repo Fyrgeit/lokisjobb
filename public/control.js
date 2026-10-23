@@ -61,7 +61,7 @@ async function fetchStats() {
 async function runScraper() {
     runScraperBtn.disabled = true;
     runScraperBtn.textContent = 'Running Scraper...';
-    appendLog('Starting job scraper ingestion across all sources...');
+    appendLog('Starting job scraper ingestion across all providers...');
 
     try {
         const res = await fetch('/api/ops/run-scraper', { method: 'POST' });
@@ -107,8 +107,8 @@ async function runEvaluator() {
     } catch (err) {
         appendLog(`Evaluator request failed: ${err.message}`, true);
     } finally {
-        runEvaluatorBtn.disabled = false;
-        runEvaluatorBtn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Run AI Evaluator`;
+        runScraperBtn.disabled = false;
+        runScraperBtn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Run AI Evaluator`;
     }
 }
 

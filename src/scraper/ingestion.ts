@@ -1,5 +1,5 @@
 import type { JobsRepository } from '../database/jobs.js';
-import type { JobSource } from '../sources/job-source.js';
+import type { JobProvider } from '../providers/job-provider.js';
 import type { ScrapedJob } from '../types/job.js';
 
 export interface IngestionSummary {
@@ -10,7 +10,7 @@ export interface IngestionSummary {
 }
 
 // This employer currently represents an AI matching service rather than a
-// direct vacancy, so exclude it consistently across every source.
+// direct vacancy, so exclude it consistently across every provider.
 const ignoredCompanies = new Set(['ren labs stockholm ab']);
 
 function isIgnoredCompany(company: string | null): boolean {
@@ -20,7 +20,7 @@ function isIgnoredCompany(company: string | null): boolean {
 }
 
 function isValidJob(job: ScrapedJob): boolean {
-    // Reject malformed source output before it reaches the repository. URL
+    // Reject malformed provider output before it reaches the repository. URL
     // validation also prevents unusable links from entering the database.
     if (!job.title.trim() || !job.url.trim()) {
         return false;
@@ -67,12 +67,12 @@ export function canonicalizeApplicationUrl(url: string): string {
 }
 
 export async function ingestFromSource(
-    source: JobSource,
+    provider: JobProvider,
     query: string,
     repository: JobsRepository,
 ): Promise<IngestionSummary> {
-    // This is the only boundary where a source result becomes persisted data.
-    const jobs = await source.search(query);
+    // This is the only boundary where a provider result becomes persisted data.
+    const jobs = await provider.search(query);
     const summary: IngestionSummary = {
         found: jobs.length,
         added: 0,
@@ -94,7 +94,7 @@ export async function ingestFromSource(
             url: canonicalizeApplicationUrl(job.url.trim()),
             sourceUrl: job.sourceUrl.trim(),
         };
-        const result = repository.upsert(normalizedJob, source.name);
+        const result = repository.upsert(normalizedJob, provider.name);
         summary[result === 'inserted' ? 'added' : 'updated'] += 1;
     }
 

@@ -5,11 +5,11 @@ import { getConfig } from './config/config.js';
 import { createDatabase } from './database/database.js';
 import { JobsRepository } from './database/jobs.js';
 import { ingestFromSource } from './scraper/ingestion.js';
-import { ArbetsformedlingenSource } from './sources/arbetsformedlingen-source.js';
-import { JarnvagsjobbSource } from './sources/jarnvagsjobb-source.js';
-import { JobblandSource } from './sources/jobbland-source.js';
-import { JobbsafariSource } from './sources/jobbsafari-source.js';
-import type { JobSource } from './sources/job-source.js';
+import { ArbetsformedlingenProvider } from './providers/arbetsformedlingen-provider.js';
+import { JarnvagsjobbProvider } from './providers/jarnvagsjobb-provider.js';
+import { JobblandProvider } from './providers/jobbland-provider.js';
+import { JobbsafariProvider } from './providers/jobbsafari-provider.js';
+import type { JobProvider } from './providers/job-provider.js';
 import { evaluateJobWithGemini } from './evaluator/gemini-evaluator.js';
 import { analyzeSourceRedundancy } from './analysis/source-redundancy.js';
 
@@ -97,24 +97,24 @@ app.post('/api/ops/run-scraper', async (_req, res) => {
         const config = getConfig();
         const database = createDatabase(config.databasePath);
         const repository = new JobsRepository(database);
-        const sources: JobSource[] = [
-            new JarnvagsjobbSource(),
-            new ArbetsformedlingenSource(),
-            new JobblandSource(),
-            new JobbsafariSource(),
+        const providers: JobProvider[] = [
+            new JarnvagsjobbProvider(),
+            new ArbetsformedlingenProvider(),
+            new JobblandProvider(),
+            new JobbsafariProvider(),
         ];
 
         const totals = { found: 0, added: 0, updated: 0, skipped: 0 };
 
         for (const query of config.searchQueries) {
             log(`--- Searching for query: "${query}" ---`);
-            for (const source of sources) {
+            for (const provider of providers) {
                 try {
                     log(
-                        `Starting job search with ${source.name} source for "${query}"...`,
+                        `Starting job search with ${provider.name} provider for "${query}"...`,
                     );
                     const summary = await ingestFromSource(
-                        source,
+                        provider,
                         query,
                         repository,
                     );
@@ -123,11 +123,11 @@ app.post('/api/ops/run-scraper', async (_req, res) => {
                     totals.updated += summary.updated;
                     totals.skipped += summary.skipped;
                     log(
-                        `[${source.name}] Found ${summary.found}, Added ${summary.added}, Updated ${summary.updated}`,
+                        `[${provider.name}] Found ${summary.found}, Added ${summary.added}, Updated ${summary.updated}`,
                     );
                 } catch (error: unknown) {
                     log(
-                        `[${source.name}] Failed for query "${query}": ${error instanceof Error ? error.message : error}`,
+                        `[${provider.name}] Failed for query "${query}": ${error instanceof Error ? error.message : error}`,
                     );
                 }
             }

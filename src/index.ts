@@ -2,43 +2,43 @@ import { getConfig } from './config/config.js';
 import { createDatabase } from './database/database.js';
 import { JobsRepository } from './database/jobs.js';
 import { ingestFromSource } from './scraper/ingestion.js';
-import { ArbetsformedlingenSource } from './sources/arbetsformedlingen-source.js';
-import { JarnvagsjobbSource } from './sources/jarnvagsjobb-source.js';
-import { JobblandSource } from './sources/jobbland-source.js';
-import { JobbsafariSource } from './sources/jobbsafari-source.js';
-import type { JobSource } from './sources/job-source.js';
+import { ArbetsformedlingenProvider } from './providers/arbetsformedlingen-provider.js';
+import { JarnvagsjobbProvider } from './providers/jarnvagsjobb-provider.js';
+import { JobblandProvider } from './providers/jobbland-provider.js';
+import { JobbsafariProvider } from './providers/jobbsafari-provider.js';
+import type { JobProvider } from './providers/job-provider.js';
 
-function createSources(): JobSource[] {
-    // Keep the registry explicit so adding a source is visible at the CLI
+function createProviders(): JobProvider[] {
+    // Keep the registry explicit so adding a provider is visible at the CLI
     // boundary and the order of network requests stays predictable.
     return [
-        new JarnvagsjobbSource(),
-        new ArbetsformedlingenSource(),
-        new JobblandSource(),
-        new JobbsafariSource(),
+        new JarnvagsjobbProvider(),
+        new ArbetsformedlingenProvider(),
+        new JobblandProvider(),
+        new JobbsafariProvider(),
     ];
 }
 
 async function main(): Promise<void> {
-    // The CLI composes the application: configuration, database, source, and
+    // The CLI composes the application: configuration, database, provider, and
     // ingestion. None of those layers need to know about this entry point.
     const config = getConfig();
     const database = createDatabase(config.databasePath);
     const repository = new JobsRepository(database);
-    const sources = createSources();
+    const providers = createProviders();
 
     try {
         const totals = { found: 0, added: 0, updated: 0, skipped: 0 };
 
         for (const query of config.searchQueries) {
             console.log(`\n--- Searching for query: "${query}" ---`);
-            for (const source of sources) {
+            for (const provider of providers) {
                 try {
                     console.log(
-                        `Starting job search with ${source.name} source for "${query}"...`,
+                        `Starting job search with ${provider.name} provider for "${query}"...`,
                     );
                     const summary = await ingestFromSource(
-                        source,
+                        provider,
                         query,
                         repository,
                     );
@@ -51,10 +51,10 @@ async function main(): Promise<void> {
                     console.log(`Updated ${summary.updated} existing jobs`);
                     console.log(`Skipped ${summary.skipped} invalid jobs`);
                 } catch (error: unknown) {
-                    // One blocked or unavailable source should not prevent the
-                    // other sources from contributing jobs.
+                    // One blocked or unavailable provider should not prevent the
+                    // other providers from contributing jobs.
                     console.error(
-                        `${source.name} failed for query "${query}":`,
+                        `${provider.name} failed for query "${query}":`,
                         error instanceof Error ? error.message : error,
                     );
                 }
