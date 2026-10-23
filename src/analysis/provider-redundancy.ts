@@ -1,6 +1,6 @@
 import type { Job } from '../types/job.js';
 
-export interface SourceStats {
+export interface ProviderStats {
     name: string;
     totalJobs: number;
     exclusiveJobs: number;
@@ -8,7 +8,7 @@ export interface SourceStats {
     noExclusiveJobs: boolean;
 }
 
-export interface SourceCombinationResult {
+export interface ProviderCombinationResult {
     sources: string[];
     coversAll: boolean;
     coveragePercentage: number;
@@ -16,11 +16,13 @@ export interface SourceCombinationResult {
 
 export interface RedundancyAnalysisReport {
     totalUniqueJobs: number;
-    sources: SourceStats[];
-    minimalCovers: SourceCombinationResult[];
+    sources: ProviderStats[];
+    minimalCovers: ProviderCombinationResult[];
 }
 
-export function analyzeSourceRedundancy(jobs: Job[]): RedundancyAnalysisReport {
+export function analyzeProviderRedundancy(
+    jobs: Job[],
+): RedundancyAnalysisReport {
     const validJobs = jobs.filter((job) => job.aiScore !== 0);
     const totalUniqueJobs = validJobs.length;
     if (totalUniqueJobs === 0) {
@@ -31,7 +33,7 @@ export function analyzeSourceRedundancy(jobs: Job[]): RedundancyAnalysisReport {
         };
     }
 
-    // Collect all unique source names
+    // Collect all unique source/provider names
     const sourceNamesSet = new Set<string>();
     for (const job of validJobs) {
         for (const source of job.sources) {
@@ -40,7 +42,7 @@ export function analyzeSourceRedundancy(jobs: Job[]): RedundancyAnalysisReport {
     }
     const sourceNames = [...sourceNamesSet].sort();
 
-    // Calculate stats per source
+    // Calculate stats per provider/source
     const sourceStatsMap = new Map<
         string,
         { total: number; exclusive: number }
@@ -67,7 +69,7 @@ export function analyzeSourceRedundancy(jobs: Job[]): RedundancyAnalysisReport {
         }
     }
 
-    const sources: SourceStats[] = sourceNames.map((name) => {
+    const sources: ProviderStats[] = sourceNames.map((name) => {
         const stats = sourceStatsMap.get(name)!;
         return {
             name,
@@ -81,7 +83,7 @@ export function analyzeSourceRedundancy(jobs: Job[]): RedundancyAnalysisReport {
     });
 
     // Find minimal source combinations that achieve 100% (or maximum possible) coverage
-    const minimalCovers: SourceCombinationResult[] = [];
+    const minimalCovers: ProviderCombinationResult[] = [];
 
     // Generate power set or test combinations (since number of sources is typically small, e.g. <= 10)
     const combinations = getCombinations(sourceNames);

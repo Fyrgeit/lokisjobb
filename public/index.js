@@ -56,7 +56,7 @@ function populateSources() {
     });
 
     const currentSource = sourceFilter.value;
-    sourceFilter.innerHTML = '<option value="">All Sources</option>';
+    sourceFilter.innerHTML = '<option value="">All Providers</option>';
     sourcesSet.forEach((source) => {
         const opt = document.createElement('option');
         opt.value = source;

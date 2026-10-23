@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { createDatabase } from './database/database.js';
 import { JobsRepository } from './database/jobs.js';
-import { analyzeSourceRedundancy } from './analysis/source-redundancy.js';
+import { analyzeProviderRedundancy } from './analysis/provider-redundancy.js';
 import { getConfig } from './config/config.js';
 
 async function main() {
@@ -11,12 +11,12 @@ async function main() {
     const repo = new JobsRepository(db);
 
     const jobs = repo.list();
-    const report = analyzeSourceRedundancy(jobs);
+    const report = analyzeProviderRedundancy(jobs);
 
-    console.log(`=== Job Source Redundancy Analysis ===`);
+    console.log(`=== Job Provider Redundancy Analysis ===`);
     console.log(`Total Unique Jobs: ${report.totalUniqueJobs}\n`);
 
-    console.log(`--- Source Statistics ---`);
+    console.log(`--- Provider Statistics ---`);
     for (const source of report.sources) {
         const tag = source.noExclusiveJobs ? ' [no exclusive jobs]' : '';
         console.log(
@@ -24,7 +24,7 @@ async function main() {
         );
     }
 
-    console.log(`\n--- Minimal Source Combinations (100% Coverage) ---`);
+    console.log(`\n--- Minimal Provider Combinations (100% Coverage) ---`);
     if (report.minimalCovers.length === 0) {
         console.log('No single combination covers 100% of jobs.');
     } else {
@@ -41,6 +41,6 @@ async function main() {
 }
 
 main().catch((error) => {
-    console.error('Error running source redundancy analysis:', error);
+    console.error('Error running provider redundancy analysis:', error);
     process.exit(1);
 });

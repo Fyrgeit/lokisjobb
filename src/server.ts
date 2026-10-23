@@ -11,7 +11,7 @@ import { JobblandProvider } from './providers/jobbland-provider.js';
 import { JobbsafariProvider } from './providers/jobbsafari-provider.js';
 import type { JobProvider } from './providers/job-provider.js';
 import { evaluateJobWithGemini } from './evaluator/gemini-evaluator.js';
-import { analyzeSourceRedundancy } from './analysis/source-redundancy.js';
+import { analyzeProviderRedundancy } from './analysis/provider-redundancy.js';
 
 const app = express();
 const PORT = 3000;
@@ -216,7 +216,7 @@ app.post('/api/ops/run-analyzer', (_req, res) => {
         const db = createDatabase(config.databasePath);
         const repo = new JobsRepository(db);
         const jobs = repo.list();
-        const report = analyzeSourceRedundancy(jobs);
+        const report = analyzeProviderRedundancy(jobs);
         db.close();
 
         res.json({ success: true, report });

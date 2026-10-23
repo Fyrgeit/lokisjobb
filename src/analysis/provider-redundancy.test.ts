@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { analyzeSourceRedundancy } from './source-redundancy.js';
+import { analyzeProviderRedundancy } from './provider-redundancy.js';
 import type { Job } from '../types/job.js';
 
-describe('analyzeSourceRedundancy', () => {
-    it('correctly calculates total unique jobs, source stats, and minimal covers', () => {
+describe('analyzeProviderRedundancy', () => {
+    it('correctly calculates total unique jobs, provider stats, and minimal covers', () => {
         const mockJobs: Job[] = [
             {
                 id: 1,
@@ -88,7 +88,7 @@ describe('analyzeSourceRedundancy', () => {
             },
         ];
 
-        const report = analyzeSourceRedundancy(mockJobs);
+        const report = analyzeProviderRedundancy(mockJobs);
 
         assert.equal(report.totalUniqueJobs, 3);
         assert.equal(report.sources.length, 3);
@@ -161,7 +161,7 @@ describe('analyzeSourceRedundancy', () => {
             },
         ];
 
-        const report = analyzeSourceRedundancy(mockJobs);
+        const report = analyzeProviderRedundancy(mockJobs);
         assert.equal(report.totalUniqueJobs, 1);
         assert.equal(report.sources.length, 1);
         assert.equal(report.sources[0].name, 'jobbsafari');

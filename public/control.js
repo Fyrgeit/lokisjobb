@@ -114,20 +114,20 @@ async function runEvaluator() {
 
 async function runAnalyzer() {
     runAnalyzerBtn.disabled = true;
-    runAnalyzerBtn.textContent = 'Analyzing Sources...';
-    appendLog('Running source redundancy analysis...');
+    runAnalyzerBtn.textContent = 'Analyzing Providers...';
+    appendLog('Running provider redundancy analysis...');
 
     try {
         const res = await fetch('/api/ops/run-analyzer', { method: 'POST' });
         const data = await parseResponse(res);
         if (data.success && data.report) {
             const r = data.report;
-            appendLog(`=== Source Redundancy Analysis Report ===`);
+            appendLog(`=== Provider Redundancy Analysis Report ===`);
             appendLog(`Total Unique Jobs: ${r.totalUniqueJobs}`);
             r.sources.forEach((s) => {
                 const tag = s.noExclusiveJobs ? ' [no exclusive jobs]' : '';
                 appendLog(
-                    `• Source: ${s.name} | Total Jobs: ${s.totalJobs} (${s.coveragePercentage}%) | Exclusive: ${s.exclusiveJobs}${tag}`,
+                    `• Provider: ${s.name} | Total Jobs: ${s.totalJobs} (${s.coveragePercentage}%) | Exclusive: ${s.exclusiveJobs}${tag}`,
                 );
             });
             if (r.minimalCovers.length > 0) {
