@@ -6,8 +6,7 @@ import {
     checkApplicationAvailability,
 } from './availability.js';
 
-export const jobblandSearchUrl =
-    'https://jobbland.se/lediga-jobb/yrke/lokforare';
+export const jobblandSearchBaseUrl = 'https://jobbland.se/lediga-jobb';
 
 function cleanText(value: string | undefined): string | null {
     const text = value?.replace(/\s+/g, ' ').trim();
@@ -21,7 +20,7 @@ function parseDeadline(text: string): string | null {
 
 export function parseJobblandJobs(
     html: string,
-    sourceUrl = jobblandSearchUrl,
+    sourceUrl = jobblandSearchBaseUrl,
 ): ScrapedJob[] {
     const $ = load(html);
     const jobs: ScrapedJob[] = [];
@@ -29,9 +28,9 @@ export function parseJobblandJobs(
     // Primary results use this wrapper. It keeps recommended cards out of the
     // search result set and isolates the site's markup in this source.
     // Jobbland appends recommended cards after the primary result cards in the
-    // same container. The first six are the result set for this profession page.
+    // same container. The first six are the result set for this search.
     $('.search-results-box .job-card-wrapper')
-        .slice(0, 6)
+        .slice(0, 10)
         .each((_index, element) => {
             const card = $(element);
             const link = card.find('a.job-card').first();
@@ -90,10 +89,9 @@ export class JobblandSource implements JobSource {
     public constructor(private readonly fetchImpl: typeof fetch = fetch) {}
 
     public async search(query: string): Promise<ScrapedJob[]> {
-        const url = new URL(jobblandSearchUrl);
-        if (query !== 'lokförare') {
-            url.searchParams.set('search', query);
-        }
+        const url = new URL(jobblandSearchBaseUrl);
+        const formattedQuery = query.replace(/,\s*/g, ';');
+        url.searchParams.set('title', formattedQuery);
 
         const response = await this.fetchImpl(url, {
             headers: {
@@ -129,30 +127,23 @@ export class JobblandSource implements JobSource {
                     continue;
                 }
 
-                const detailHtml = await detailResponse.text();
-                const detailPage = load(detailHtml);
-                job.description = parseJobblandDescription(detailHtml);
-                const applyUrl = detailPage('a.apply--button')
-                    .first()
-                    .attr('href');
-                if (applyUrl) {
-                    job.url = new URL(applyUrl, job.sourceUrl).toString();
-                    job.availability = await checkApplicationAvailability(
-                        this.fetchImpl,
-                        job.url,
-                    );
-                } else {
-                    job.availability = 'active';
+                const html = await detailResponse.text();
+                const description = parseJobblandDescription(html);
+                const deadline = parseDeadline(html);
+
+                if (description) {
+                    job.description = description;
                 }
-                job.applicationDeadline = parseDeadline(
-                    cleanText(detailPage('body').text()) ?? '',
+                if (deadline) {
+                    job.applicationDeadline = deadline;
+                }
+
+                job.availability = await checkApplicationAvailability(
+                    this.fetchImpl,
+                    job.url,
                 );
-            } catch (error: unknown) {
-                const message =
-                    error instanceof Error ? error.message : String(error);
-                console.warn(
-                    `Could not fetch Jobbland details from ${job.url}: ${message}`,
-                );
+            } catch {
+                // Individual detail fetch failure should not drop the job card.
             }
         }
 

@@ -4,13 +4,15 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "dev": "tsx src/index.ts",
-        "jobs": "tsx src/list-jobs.ts",
+        "dev": "tsx --env-file=.env src/index.ts",
+        "jobs": "tsx --env-file=.env src/list-jobs.ts",
         "build": "tsc",
-        "start": "node dist/index.js",
+        "start": "node --env-file=.env dist/index.js",
         "test": "tsx --test \"src/**/*.test.ts\"",
         "lint": "eslint .",
-        "server": "tsx src/server.ts"
+        "server": "tsx --env-file=.env src/server.ts",
+        "analyze": "tsx --env-file=.env src/analyze-sources.ts",
+        "evaluate": "tsx --env-file=.env src/evaluate-jobs.ts"
     },
     "dependencies": {
         "better-sqlite3": "^12.4.1",

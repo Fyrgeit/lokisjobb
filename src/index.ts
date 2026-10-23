@@ -30,40 +30,42 @@ async function main(): Promise<void> {
     try {
         const totals = { found: 0, added: 0, updated: 0, skipped: 0 };
 
-        for (const source of sources) {
-            try {
-                console.log(
-                    `Starting job search with ${source.name} source...`,
-                );
-                const summary = await ingestFromSource(
-                    source,
-                    config.searchQuery,
-                    repository,
-                );
-                totals.found += summary.found;
-                totals.added += summary.added;
-                totals.updated += summary.updated;
-                totals.skipped += summary.skipped;
-                console.log(`Found ${summary.found} jobs`);
-                console.log(`Added ${summary.added} new jobs`);
-                console.log(`Updated ${summary.updated} existing jobs`);
-                console.log(`Skipped ${summary.skipped} invalid jobs`);
-            } catch (error: unknown) {
-                // One blocked or unavailable source should not prevent the
-                // other sources from contributing jobs.
-                console.error(
-                    `${source.name} failed:`,
-                    error instanceof Error ? error.message : error,
-                );
+        for (const query of config.searchQueries) {
+            console.log(`\n--- Searching for query: "${query}" ---`);
+            for (const source of sources) {
+                try {
+                    console.log(
+                        `Starting job search with ${source.name} source for "${query}"...`,
+                    );
+                    const summary = await ingestFromSource(
+                        source,
+                        query,
+                        repository,
+                    );
+                    totals.found += summary.found;
+                    totals.added += summary.added;
+                    totals.updated += summary.updated;
+                    totals.skipped += summary.skipped;
+                    console.log(`Found ${summary.found} jobs`);
+                    console.log(`Added ${summary.added} new jobs`);
+                    console.log(`Updated ${summary.updated} existing jobs`);
+                    console.log(`Skipped ${summary.skipped} invalid jobs`);
+                } catch (error: unknown) {
+                    // One blocked or unavailable source should not prevent the
+                    // other sources from contributing jobs.
+                    console.error(
+                        `${source.name} failed for query "${query}":`,
+                        error instanceof Error ? error.message : error,
+                    );
+                }
             }
         }
 
-        if (sources.length > 1) {
-            console.log(`Total found: ${totals.found}`);
-            console.log(`Total added: ${totals.added}`);
-            console.log(`Total updated: ${totals.updated}`);
-            console.log(`Total skipped: ${totals.skipped}`);
-        }
+        console.log(`\n--- Overall Totals ---`);
+        console.log(`Total found: ${totals.found}`);
+        console.log(`Total added: ${totals.added}`);
+        console.log(`Total updated: ${totals.updated}`);
+        console.log(`Total skipped: ${totals.skipped}`);
         console.log(`Database now contains ${repository.list().length} jobs`);
     } finally {
         database.close();

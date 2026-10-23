@@ -20,7 +20,6 @@ function detailHtml(): string {
     return `
         <body>
             <h1>Lokförare till LKAB</h1>
-            <a class="apply--button" href="https://emp.jobylon.com/jobs/380014-green-cargo-lokforare-till-sundsvall/">Ansök</a>
             <div><h2>Om jobbet</h2><p>Kör malmtåg i Gällivare.</p></div>
             <p>Slutdatum 2026-09-27</p>
         </body>
@@ -69,7 +68,7 @@ describe('JobblandSource', () => {
         assert.equal(jobs[0]?.applicationDeadline, '2026-09-27');
         assert.equal(
             jobs[0]?.url,
-            'https://emp.jobylon.com/jobs/380014-green-cargo-lokforare-till-sundsvall/',
+            'https://jobbland.se/jobb/lokforare-till-lkab',
         );
     });
 });
