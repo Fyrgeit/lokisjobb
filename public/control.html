@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Lokisjobb - Control Panel & Ops Center</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script src="/control.js" type="module" defer></script>
+    </head>
+    <body class="bg-slate-950 text-slate-100 min-h-screen">
+        <header class="bg-slate-900 border-b border-slate-800 shadow-lg">
+            <div
+                class="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4"
+            >
+                <div class="flex items-center gap-3">
+                    <div
+                        class="w-3 h-3 bg-emerald-500 rounded-full animate-pulse"
+                    ></div>
+                    <div>
+                        <h1
+                            class="text-xl font-bold tracking-tight text-white flex items-center gap-2"
+                        >
+                            Lokisjobb Control Panel
+                            <span
+                                class="text-xs bg-indigo-900 text-indigo-300 px-2 py-0.5 rounded border border-indigo-700"
+                                >Ops Center</span
+                            >
+                        </h1>
+                        <p class="text-slate-400 text-xs">
+                            Pipeline Orchestration & Database Inspection
+                        </p>
+                    </div>
+                </div>
+                <nav
+                    class="flex items-center gap-2 bg-slate-800 p-1 rounded-lg border border-slate-700 text-sm"
+                >
+                    <a
+                        href="/"
+                        class="px-3 py-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-700 transition"
+                    >
+                        Job Dashboard
+                    </a>
+                    <a
+                        href="/control.html"
+                        class="px-3 py-1.5 rounded bg-indigo-600 text-white font-medium shadow transition"
+                    >
+                        Control Panel
+                    </a>
+                </nav>
+            </div>
+        </header>
+
+        <main class="max-w-7xl mx-auto px-4 py-8 space-y-8">
+            <!-- Database Overview Stats -->
+            <section class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div
+                    class="bg-slate-900 p-5 rounded-xl border border-slate-800 shadow-sm"
+                >
+                    <p
+                        class="text-xs font-semibold text-slate-400 uppercase tracking-wider"
+                    >
+                        Total Stored Jobs
+                    </p>
+                    <p
+                        id="statTotalJobs"
+                        class="text-3xl font-bold text-emerald-400 mt-1"
+                    >
+                        -
+                    </p>
+                </div>
+                <div
+                    class="bg-slate-900 p-5 rounded-xl border border-slate-800 shadow-sm"
+                >
+                    <p
+                        class="text-xs font-semibold text-slate-400 uppercase tracking-wider"
+                    >
+                        Source Records
+                    </p>
+                    <p
+                        id="statTotalSources"
+                        class="text-3xl font-bold text-indigo-400 mt-1"
+                    >
+                        -
+                    </p>
+                </div>
+                <div
+                    class="bg-slate-900 p-5 rounded-xl border border-slate-800 shadow-sm"
+                >
+                    <p
+                        class="text-xs font-semibold text-slate-400 uppercase tracking-wider"
+                    >
+                        Database Location
+                    </p>
+                    <p
+                        id="statDbPath"
+                        class="text-xs font-mono text-slate-300 mt-2 truncate"
+                    >
+                        -
+                    </p>
+                </div>
+            </section>
+
+            <!-- Action Runners Grid -->
+            <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Scraper Runner -->
+                <div
+                    class="bg-slate-900 p-6 rounded-xl border border-slate-800 flex flex-col justify-between shadow-sm"
+                >
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="font-bold text-lg text-white">
+                                Job Scraper
+                            </h3>
+                            <span
+                                class="text-xs bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded border border-emerald-800"
+                                >Ingestion</span
+                            >
+                        </div>
+                        <p class="text-xs text-slate-400 mb-6">
+                            Fetches fresh job listings across all configured
+                            sources (Arbetsformedlingen, Jobbland, etc.) and
+                            search queries.
+                        </p>
+                    </div>
+                    <button
+                        id="runScraperBtn"
+                        class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2 px-4 rounded-lg font-medium text-sm transition flex items-center justify-center gap-2 shadow"
+                    >
+                        <svg
+                            class="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+                            />
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
+                        </svg>
+                        Run Scraper
+                    </button>
+                </div>
+
+                <!-- Evaluator Runner -->
+                <div
+                    class="bg-slate-900 p-6 rounded-xl border border-slate-800 flex flex-col justify-between shadow-sm"
+                >
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="font-bold text-lg text-white">
+                                AI Evaluator
+                            </h3>
+                            <span
+                                class="text-xs bg-purple-950 text-purple-400 px-2 py-0.5 rounded border border-purple-800"
+                                >Gemini AI</span
+                            >
+                        </div>
+                        <p class="text-xs text-slate-400 mb-6">
+                            Evaluates unevaluated jobs using Google Gemini AI,
+                            scoring relevance and assigning reasoning/status.
+                        </p>
+                    </div>
+                    <button
+                        id="runEvaluatorBtn"
+                        class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-lg font-medium text-sm transition flex items-center justify-center gap-2 shadow"
+                    >
+                        <svg
+                            class="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M13 10V3L4 14h7v7l9-11h-7z"
+                            />
+                        </svg>
+                        Run AI Evaluator
+                    </button>
+                </div>
+
+                <!-- Analyzer Runner -->
+                <div
+                    class="bg-slate-900 p-6 rounded-xl border border-slate-800 flex flex-col justify-between shadow-sm"
+                >
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="font-bold text-lg text-white">
+                                Source Analyzer
+                            </h3>
+                            <span
+                                class="text-xs bg-blue-950 text-blue-400 px-2 py-0.5 rounded border border-blue-800"
+                                >Redundancy</span
+                            >
+                        </div>
+                        <p class="text-xs text-slate-400 mb-6">
+                            Analyzes source redundancy, coverage overlap,
+                            exclusive job counts, and minimal source covers.
+                        </p>
+                    </div>
+                    <button
+                        id="runAnalyzerBtn"
+                        class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-medium text-sm transition flex items-center justify-center gap-2 shadow"
+                    >
+                        <svg
+                            class="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                            />
+                        </svg>
+                        Run Analyzer
+                    </button>
+                </div>
+            </section>
+
+            <!-- Live Terminal Output Console -->
+            <section
+                class="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden shadow-sm"
+            >
+                <div
+                    class="bg-slate-900 px-4 py-3 border-b border-slate-800 flex items-center justify-between"
+                >
+                    <div class="flex items-center gap-2">
+                        <div class="w-3 h-3 rounded-full bg-rose-500"></div>
+                        <div class="w-3 h-3 rounded-full bg-amber-500"></div>
+                        <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
+                        <span class="text-xs font-mono text-slate-400 ml-2"
+                            >ops-terminal@lokisjobb:~</span
+                        >
+                    </div>
+                    <button
+                        id="clearLogsBtn"
+                        class="text-xs text-slate-400 hover:text-white transition"
+                    >
+                        Clear Console
+                    </button>
+                </div>
+                <div
+                    id="terminalOutput"
+                    class="p-4 font-mono text-xs text-emerald-400 bg-slate-950 h-64 overflow-y-auto whitespace-pre-wrap"
+                >
+                    System ready. Click any action above to run pipeline
+                    tasks...
+                </div>
+            </section>
+
+            <!-- Database Inspector Section -->
+            <section
+                class="bg-slate-900 p-6 rounded-xl border border-slate-800 shadow-sm space-y-4"
+            >
+                <div
+                    class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                >
+                    <div>
+                        <h3 class="text-lg font-bold text-white">
+                            Database Inspector
+                        </h3>
+                        <p class="text-xs text-slate-400">
+                            Inspect raw SQLite table records (`jobs` and
+                            `job_sources`).
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <select
+                            id="tableSelect"
+                            class="bg-slate-800 border border-slate-700 text-slate-200 text-sm px-3 py-1.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        >
+                            <option value="jobs">jobs table</option>
+                            <option value="job_sources">
+                                job_sources table
+                            </option>
+                        </select>
+                        <button
+                            id="refreshTableBtn"
+                            class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-1.5 rounded-lg font-medium transition shadow"
+                        >
+                            Load Table
+                        </button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto border border-slate-800 rounded-lg">
+                    <table
+                        id="inspectorTable"
+                        class="w-full text-left text-xs font-mono text-slate-300"
+                    >
+                        <thead class="bg-slate-800 text-slate-400 uppercase">
+                            <tr>
+                                <th class="p-3">
+                                    Select a table and click Load Table
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody
+                            id="inspectorBody"
+                            class="divide-y divide-slate-800 bg-slate-950"
+                        >
+                            <tr>
+                                <td class="p-4 text-slate-500 text-center">
+                                    No data loaded yet.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </body>
+</html>

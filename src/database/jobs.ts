@@ -225,9 +225,17 @@ export class JobsRepository {
     }
 
     public updateAiScore(id: number, aiScore: number | null): void {
-        this.database
-            .prepare('UPDATE jobs SET ai_score = ? WHERE id = ?')
-            .run(aiScore, id);
+        if (aiScore === 0) {
+            this.database
+                .prepare(
+                    'UPDATE jobs SET ai_score = ?, status = ? WHERE id = ?',
+                )
+                .run(aiScore, 'rejected', id);
+        } else {
+            this.database
+                .prepare('UPDATE jobs SET ai_score = ? WHERE id = ?')
+                .run(aiScore, id);
+        }
     }
 
     public updateStatus(id: number, status: JobStatus): void {

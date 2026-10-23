@@ -1,52 +1,55 @@
 # Lokisjobb
 
-Lokisjobb is a local TypeScript foundation for finding and evaluating job listings. It currently includes a source for the public job listing page at jarnvagsjobb.se.
+Lokisjobb is a robust local TypeScript foundation for finding, ingesting, analyzing, and evaluating job listings from multiple Swedish job sources.
+
+## Supported Sources
+
+- **Järnvägsjobb**: Scrapes listings and detail pages from `jarnvagsjobb.se`.
+- **Arbetsförmedlingen**: Queries the public JobTech API behind Platsbanken.
+- **Jobbland**: Scrapes job cards and detail pages from `jobbland.se`.
+- **Jobbsafari**: Reads embedded search data and detail pages from `jobbsafari.se`.
 
 ## Prerequisites
 
 - Node.js 20 or newer
 - npm
 
-## Install and run
+## Install and Run
 
-`npm run dev` searches every configured source in sequence. Each source gets
-its own summary and totals are printed at the end. A source failure is reported
-and skipped so it does not stop the other sources.
+Install dependencies:
+
+```bash
+npm install
+```
+
+### Available Scripts
+
+- `npm run dev`: Scrapes and ingests job listings from all configured sources in sequence.
+- `npm run server`: Starts the Express web server (`http://localhost:3000`) serving the UI and API (`/api/jobs`).
+- `npm run jobs`: Reads persisted jobs from SQLite and prints them as text.
+- `npm run evaluate`: Evaluates unevaluated jobs using Google Gemini (`GEMINI_API_KEY` required).
+- `npm run analyze`: Runs source redundancy and coverage analysis on persisted jobs.
+- `npm test`: Runs test suites across the codebase.
+- `npm run build`: Compiles TypeScript files (`tsc`).
+- `npm start`: Runs the compiled production build.
+- `npm run lint`: Lints the codebase with ESLint.
 
 On Windows PowerShell:
 
 ```powershell
 $env:DATABASE_PATH = ".\\data\\jobs.db"
 $env:SEARCH_QUERY = "lokförare"
+$env:GEMINI_API_KEY = "your-api-key"
 npm run dev
 ```
 
-Other commands:
+## Key Features
 
-```bash
-npm run jobs
-npm test
-npm run build
-npm start
-npm run lint
-```
-
-`npm run jobs` reads the persisted jobs from SQLite and prints them as text. Set
-`DATABASE_PATH` first if the database is stored somewhere other than
-`data/jobs.db`.
-
-Running the application more than once updates `last_seen_at` for the same URLs instead of creating duplicate rows. The SQLite database itself is ignored by Git.
-
-Jobs use `url` as the canonical application destination for deduplication. The
-`job_sources` table stores every listing or detail page where the job was found,
-including each source's first and latest sighting times. Known Jobylon URL
-variants are normalized to the same vacancy identity, so syndicated listings
-from multiple sources converge without losing provenance.
-
-Availability is separate from your personal job `status`. Each source is
-tracked as `active`, `closed`, or `unknown`; a job is `closed` only when all
-known sources report it closed. Closed jobs remain stored for history and are
-not automatically marked `rejected`.
+1. **Deduplication & Provenance**: Jobs use canonical `url` as the primary deduplication key. The `job_sources` table tracks every source listing where a job appeared, recording first and latest sighting times. Known Jobylon URL variants are automatically normalized so syndicated listings converge without losing provenance.
+2. **Availability Tracking**: Each source connection tracks availability as `active`, `closed`, or `unknown`. A job is marked `closed` only when all known sources report it closed. Closed jobs are retained for historical analysis.
+3. **AI Evaluation (Gemini)**: Leverages Google Gemini to evaluate job postings against custom criteria, storing `ai_score` and reasoning in the database.
+4. **Source Redundancy Analysis**: Analyzes overlap, exclusive job coverage, and minimal source combinations needed for 100% market coverage.
+5. **Web Interface & API**: Express backend serving a local frontend interface in `public/` for inspecting and viewing jobs.
 
 ## Architecture
 
@@ -57,28 +60,28 @@ JobSource.search(query)
   ScrapedJob[]
         |
         v
-  ingestion service
+  ingestion service (validation & normalization)
         |
         v
-  JobsRepository
+  JobsRepository (SQLite persistence & deduplication)
         |
-        v
-     SQLite
+        +---> Analysis / Redundancy Analyzer
+        +---> Gemini AI Evaluator
+        +---> Express Web Server (/api/jobs)
 ```
 
-- `src/sources/` contains source-specific fetching and parsing. Sources return `ScrapedJob` values and do not know about SQLite. `JarnvagsjobbSource` reads jarnvagsjobb.se, `ArbetsformedlingenSource` uses the public JobTech API behind Platsbanken, `JobbsafariSource` reads Jobbsafari's embedded search data and detail pages, and `JobblandSource` reads Jobbland search cards and detail pages.
-- `src/scraper/ingestion.ts` validates source results and connects a source to the repository.
-- `src/database/` initializes SQLite and owns job persistence, including URL-based deduplication.
-- `src/types/job.ts` contains the normalized scraped and persisted job types.
-- `application_deadline` stores the source-provided latest application date when available.
-- AI evaluation is intentionally not implemented. A future evaluator can read persisted jobs and update `ai_score` through the repository.
+- `src/sources/`: Source-specific fetching, parsing, and normalization implementing `JobSource`.
+- `src/scraper/`: Ingestion service validating and storing scraped jobs into the repository.
+- `src/database/`: SQLite database initialization (`database.ts`) and repository (`jobs.ts`) handling persistence and deduplication.
+- `src/evaluator/`: Google Gemini AI job evaluation logic (`gemini-evaluator.ts`).
+- `src/analysis/`: Source redundancy and coverage overlap algorithms (`source-redundancy.ts`).
+- `src/server.ts`: Express API server powering the local web interface (`public/`).
+- `src/types/job.ts`: Normalized scraped and persisted job data types.
 
-## Adding a job source
+## Adding a Job Source
 
-1. Create a module in `src/sources/` implementing `JobSource`.
-2. Fetch the source and map its results to `ScrapedJob` objects.
-3. Use that source with `ingestFromSource` in the application entry point.
+1. Create a new module in `src/sources/` implementing the `JobSource` interface.
+2. Fetch the source and map results to `ScrapedJob` objects.
+3. Register the new source in the ingestion pipeline (`src/index.ts`).
 
-The source should keep all website-specific selectors or API parsing inside its own module and should never import the database layer.
-
-The Järnvägsjobb source reads titles, companies, locations, deadlines, and links from the listing page, then fetches each detail page for the full job description. If an individual detail page cannot be fetched, the listing is still stored and a warning is printed. Detail pages are fetched sequentially to keep the scraper simple and polite.
+Sources encapsulate all website-specific scraping/API logic and never directly import the database layer.

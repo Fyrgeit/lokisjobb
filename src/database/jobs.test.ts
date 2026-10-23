@@ -138,4 +138,31 @@ describe('JobsRepository.upsert', () => {
         assert.equal(job?.status, 'new');
         assert.equal(job?.sources[0]?.availability, 'closed');
     });
+
+    it('sets status to rejected when ai score is 0 and remembers it upon re-ingestion', () => {
+        const repository = createRepository();
+        repository.upsert(
+            scrapedJob,
+            'test-source',
+            '2026-01-01T10:00:00.000Z',
+        );
+        const firstJob = repository.findByUrl(scrapedJob.url);
+        assert.ok(firstJob);
+        repository.updateAiScore(firstJob.id, 0);
+
+        const jobAfterScore = repository.findByUrl(scrapedJob.url);
+        assert.equal(jobAfterScore?.aiScore, 0);
+        assert.equal(jobAfterScore?.status, 'rejected');
+
+        // Re-ingest the same job
+        repository.upsert(
+            scrapedJob,
+            'test-source',
+            '2026-01-02T10:00:00.000Z',
+        );
+
+        const jobAfterReingest = repository.findByUrl(scrapedJob.url);
+        assert.equal(jobAfterReingest?.aiScore, 0);
+        assert.equal(jobAfterReingest?.status, 'rejected');
+    });
 });

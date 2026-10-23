@@ -18,8 +18,9 @@ async function main() {
 
     console.log(`--- Source Statistics ---`);
     for (const source of report.sources) {
+        const tag = source.noExclusiveJobs ? ' [no exclusive jobs]' : '';
         console.log(
-            `• ${source.name}: ${source.totalJobs} jobs (${source.coveragePercentage}%), ${source.exclusiveJobs} exclusive jobs`,
+            `• ${source.name}: ${source.totalJobs} jobs (${source.coveragePercentage}%), ${source.exclusiveJobs} exclusive jobs${tag}`,
         );
     }
 
@@ -30,7 +31,9 @@ async function main() {
         // Show top 3 minimal covers
         const topCovers = report.minimalCovers.slice(0, 3);
         for (const cover of topCovers) {
-            console.log(`[ ${cover.sources.join(', ')} ] -> Covers ${cover.coveragePercentage}% of jobs`);
+            console.log(
+                `[ ${cover.sources.join(', ')} ] -> Covers ${cover.coveragePercentage}% of jobs`,
+            );
         }
     }
 

@@ -5,6 +5,7 @@ export interface SourceStats {
     totalJobs: number;
     exclusiveJobs: number;
     coveragePercentage: number;
+    noExclusiveJobs: boolean;
 }
 
 export interface SourceCombinationResult {
@@ -20,7 +21,8 @@ export interface RedundancyAnalysisReport {
 }
 
 export function analyzeSourceRedundancy(jobs: Job[]): RedundancyAnalysisReport {
-    const totalUniqueJobs = jobs.length;
+    const validJobs = jobs.filter((job) => job.aiScore !== 0);
+    const totalUniqueJobs = validJobs.length;
     if (totalUniqueJobs === 0) {
         return {
             totalUniqueJobs: 0,
@@ -31,7 +33,7 @@ export function analyzeSourceRedundancy(jobs: Job[]): RedundancyAnalysisReport {
 
     // Collect all unique source names
     const sourceNamesSet = new Set<string>();
-    for (const job of jobs) {
+    for (const job of validJobs) {
         for (const source of job.sources) {
             sourceNamesSet.add(source.name);
         }
@@ -39,12 +41,15 @@ export function analyzeSourceRedundancy(jobs: Job[]): RedundancyAnalysisReport {
     const sourceNames = [...sourceNamesSet].sort();
 
     // Calculate stats per source
-    const sourceStatsMap = new Map<string, { total: number; exclusive: number }>();
+    const sourceStatsMap = new Map<
+        string,
+        { total: number; exclusive: number }
+    >();
     for (const name of sourceNames) {
         sourceStatsMap.set(name, { total: 0, exclusive: 0 });
     }
 
-    for (const job of jobs) {
+    for (const job of validJobs) {
         const jobSourceNames = new Set(job.sources.map((s) => s.name));
 
         for (const name of jobSourceNames) {
@@ -68,13 +73,16 @@ export function analyzeSourceRedundancy(jobs: Job[]): RedundancyAnalysisReport {
             name,
             totalJobs: stats.total,
             exclusiveJobs: stats.exclusive,
-            coveragePercentage: Number(((stats.total / totalUniqueJobs) * 100).toFixed(1)),
+            coveragePercentage: Number(
+                ((stats.total / totalUniqueJobs) * 100).toFixed(1),
+            ),
+            noExclusiveJobs: stats.exclusive === 0,
         };
     });
 
     // Find minimal source combinations that achieve 100% (or maximum possible) coverage
     const minimalCovers: SourceCombinationResult[] = [];
-    
+
     // Generate power set or test combinations (since number of sources is typically small, e.g. <= 10)
     const combinations = getCombinations(sourceNames);
     // Sort combinations by size ascending
@@ -87,7 +95,7 @@ export function analyzeSourceRedundancy(jobs: Job[]): RedundancyAnalysisReport {
         }
 
         let coveredCount = 0;
-        for (const job of jobs) {
+        for (const job of validJobs) {
             const jobSourceNames = new Set(job.sources.map((s) => s.name));
             const isCovered = combo.some((src) => jobSourceNames.has(src));
             if (isCovered) {
@@ -95,7 +103,9 @@ export function analyzeSourceRedundancy(jobs: Job[]): RedundancyAnalysisReport {
             }
         }
 
-        const coveragePercentage = Number(((coveredCount / totalUniqueJobs) * 100).toFixed(1));
+        const coveragePercentage = Number(
+            ((coveredCount / totalUniqueJobs) * 100).toFixed(1),
+        );
         const coversAll = coveredCount === totalUniqueJobs;
 
         if (coversAll) {
