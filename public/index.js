@@ -1,4 +1,5 @@
 let allJobs = [];
+let currentView = localStorage.getItem('lokisjobb_view') || 'card';
 
 const searchInput = document.getElementById('searchInput');
 const statusDropdownButton = document.getElementById('statusDropdownButton');
@@ -13,6 +14,8 @@ const sortSelect = document.getElementById('sortSelect');
 const outputEl = document.getElementById('output');
 const refreshButton = document.getElementById('refreshButton');
 const jobCountLabel = document.getElementById('jobCountLabel');
+const cardViewBtn = document.getElementById('cardViewBtn');
+const listViewBtn = document.getElementById('listViewBtn');
 
 const statTotal = document.getElementById('statTotal');
 const statActive = document.getElementById('statActive');
@@ -172,6 +175,22 @@ function updateDashboard() {
 
     jobCountLabel.textContent = `Showing ${filtered.length} of ${total} jobs`;
 
+    // Update container classes and buttons according to currentView
+    if (currentView === 'list') {
+        outputEl.className = 'flex flex-col gap-2';
+        listViewBtn.className =
+            'p-1.5 rounded text-slate-600 hover:text-slate-900 bg-white shadow-sm transition';
+        cardViewBtn.className =
+            'p-1.5 rounded text-slate-400 hover:text-slate-900 transition';
+    } else {
+        outputEl.className =
+            'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6';
+        cardViewBtn.className =
+            'p-1.5 rounded text-slate-600 hover:text-slate-900 bg-white shadow-sm transition';
+        listViewBtn.className =
+            'p-1.5 rounded text-slate-400 hover:text-slate-900 transition';
+    }
+
     // 3. Render
     outputEl.innerHTML = '';
     if (filtered.length === 0) {
@@ -184,10 +203,6 @@ function updateDashboard() {
     }
 
     filtered.forEach((job) => {
-        const card = document.createElement('div');
-        card.className =
-            'bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between hover:shadow-md transition';
-
         const statusColors = {
             interested: 'bg-amber-50 text-amber-700 border border-amber-200',
             applied: 'bg-blue-50 text-blue-700 border border-blue-200',
@@ -215,45 +230,85 @@ function updateDashboard() {
                 ? `<span class="px-2.5 py-1 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg text-xs font-semibold">AI Score: ${job.aiScore}</span>`
                 : '';
 
-        card.innerHTML = `
-            <div>
-                <div class="flex items-start justify-between gap-2 mb-2">
-                    <span class="text-xs px-2.5 py-1 rounded-lg font-medium uppercase tracking-wider ${statusColors[job.status] || 'bg-slate-100 text-slate-700'}">
+        if (currentView === 'list') {
+            const row = document.createElement('div');
+            row.className =
+                'bg-white rounded-lg shadow-sm border border-slate-200 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:shadow-md transition';
+
+            row.innerHTML = `
+                <div class="flex items-center gap-3 flex-wrap min-w-0 flex-1">
+                    <span class="text-xs px-2 py-0.5 rounded font-medium uppercase tracking-wider whitespace-nowrap ${statusColors[job.status] || 'bg-slate-100 text-slate-700'}">
                         ${job.status}
                     </span>
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs px-2.5 py-1 rounded-lg font-medium ${availabilityColors[job.availability] || 'bg-slate-100 text-slate-600'}">
-                            ${job.availability}
-                        </span>
-                        ${scoreBadge}
+                    <span class="text-xs px-2 py-0.5 rounded font-medium whitespace-nowrap ${availabilityColors[job.availability] || 'bg-slate-100 text-slate-600'}">
+                        ${job.availability}
+                    </span>
+                    ${scoreBadge}
+                    <div class="min-w-0 flex-1">
+                        <h3 class="font-bold text-slate-900 truncate">
+                            <a href="${job.url}" target="_blank" class="hover:text-indigo-600 transition">${job.title}</a>
+                        </h3>
+                        <p class="text-xs text-slate-500 truncate">
+                            ${job.company || 'Unknown Company'} ${job.location ? `• ${job.location}` : ''}
+                        </p>
                     </div>
                 </div>
 
-                <h3 class="font-bold text-lg text-slate-900 mb-1 leading-snug">
-                    <a href="${job.url}" target="_blank" class="hover:text-indigo-600 transition">${job.title}</a>
-                </h3>
-
-                <p class="text-sm font-medium text-slate-600 mb-3">
-                    ${job.company || 'Unknown Company'} ${job.location ? `• <span class="text-slate-500">${job.location}</span>` : ''}
-                </p>
-
-                <p class="text-xs text-slate-500 line-clamp-3 mb-4">
-                    ${job.description || 'No description available.'}
-                </p>
-            </div>
-
-            <div class="pt-4 border-t border-slate-100 flex items-center justify-between gap-2 mt-auto">
-                <div class="flex flex-wrap gap-1">
-                    ${sourcesHtml}
+                <div class="flex items-center gap-4 text-xs text-slate-500 self-end sm:self-center">
+                    <div class="flex flex-wrap gap-1">
+                        ${sourcesHtml}
+                    </div>
+                    <a href="${job.url}" target="_blank" class="font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 whitespace-nowrap">
+                        View 
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                    </a>
                 </div>
-                <a href="${job.url}" target="_blank" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
-                    View Job 
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-                </a>
-            </div>
-        `;
+            `;
+            outputEl.appendChild(row);
+        } else {
+            const card = document.createElement('div');
+            card.className =
+                'bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between hover:shadow-md transition';
 
-        outputEl.appendChild(card);
+            card.innerHTML = `
+                <div>
+                    <div class="flex items-start justify-between gap-2 mb-2">
+                        <span class="text-xs px-2.5 py-1 rounded-lg font-medium uppercase tracking-wider ${statusColors[job.status] || 'bg-slate-100 text-slate-700'}">
+                            ${job.status}
+                        </span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs px-2.5 py-1 rounded-lg font-medium ${availabilityColors[job.availability] || 'bg-slate-100 text-slate-600'}">
+                                ${job.availability}
+                            </span>
+                            ${scoreBadge}
+                        </div>
+                    </div>
+
+                    <h3 class="font-bold text-lg text-slate-900 mb-1 leading-snug">
+                        <a href="${job.url}" target="_blank" class="hover:text-indigo-600 transition">${job.title}</a>
+                    </h3>
+
+                    <p class="text-sm font-medium text-slate-600 mb-3">
+                        ${job.company || 'Unknown Company'} ${job.location ? `• <span class="text-slate-500">${job.location}</span>` : ''}
+                    </p>
+
+                    <p class="text-xs text-slate-500 line-clamp-3 mb-4">
+                        ${job.description || 'No description available.'}
+                    </p>
+                </div>
+
+                <div class="pt-4 border-t border-slate-100 flex items-center justify-between gap-2 mt-auto">
+                    <div class="flex flex-wrap gap-1">
+                        ${sourcesHtml}
+                    </div>
+                    <a href="${job.url}" target="_blank" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+                        View Job 
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                    </a>
+                </div>
+            `;
+            outputEl.appendChild(card);
+        }
     });
 }
 
@@ -286,6 +341,16 @@ availabilityFilter.addEventListener('change', updateDashboard);
 sourceFilter.addEventListener('change', updateDashboard);
 sortSelect.addEventListener('change', updateDashboard);
 refreshButton.addEventListener('click', fetchJobs);
+cardViewBtn.addEventListener('click', () => {
+    currentView = 'card';
+    localStorage.setItem('lokisjobb_view', 'card');
+    updateDashboard();
+});
+listViewBtn.addEventListener('click', () => {
+    currentView = 'list';
+    localStorage.setItem('lokisjobb_view', 'list');
+    updateDashboard();
+});
 
 // Initial Load
 fetchJobs();

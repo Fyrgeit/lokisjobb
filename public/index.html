@@ -252,29 +252,80 @@
                     </select>
                 </div>
 
-                <div class="flex items-center gap-2">
-                    <label
-                        for="sortSelect"
-                        class="text-sm font-medium text-slate-600 whitespace-nowrap"
-                        >Sort by:</label
+                <div class="flex items-center gap-4">
+                    <div
+                        class="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200"
                     >
-                    <select
-                        id="sortSelect"
-                        class="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                        <option value="discovered-desc">
-                            Discovered (Newest)
-                        </option>
-                        <option value="discovered-asc">
-                            Discovered (Oldest)
-                        </option>
-                        <option value="score-desc">AI Score (Highest)</option>
-                        <option value="score-asc">AI Score (Lowest)</option>
-                        <option value="title-asc">Title (A-Z)</option>
-                        <option value="company-asc">Company (A-Z)</option>
-                        <option value="deadline-asc">Deadline (Soonest)</option>
-                        <option value="deadline-desc">Deadline (Latest)</option>
-                    </select>
+                        <button
+                            id="cardViewBtn"
+                            title="Card View"
+                            class="p-1.5 rounded text-slate-600 hover:text-slate-900 bg-white shadow-sm transition"
+                        >
+                            <svg
+                                class="w-4 h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+                                />
+                            </svg>
+                        </button>
+                        <button
+                            id="listViewBtn"
+                            title="List View"
+                            class="p-1.5 rounded text-slate-400 hover:text-slate-900 transition"
+                        >
+                            <svg
+                                class="w-4 h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M4 6h16M4 12h16M4 18h16"
+                                />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <label
+                            for="sortSelect"
+                            class="text-sm font-medium text-slate-600 whitespace-nowrap"
+                            >Sort by:</label
+                        >
+                        <select
+                            id="sortSelect"
+                            class="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        >
+                            <option value="discovered-desc">
+                                Discovered (Newest)
+                            </option>
+                            <option value="discovered-asc">
+                                Discovered (Oldest)
+                            </option>
+                            <option value="score-desc">
+                                AI Score (Highest)
+                            </option>
+                            <option value="score-asc">AI Score (Lowest)</option>
+                            <option value="title-asc">Title (A-Z)</option>
+                            <option value="company-asc">Company (A-Z)</option>
+                            <option value="deadline-asc">
+                                Deadline (Soonest)
+                            </option>
+                            <option value="deadline-desc">
+                                Deadline (Latest)
+                            </option>
+                        </select>
+                    </div>
                 </div>
             </section>
 
