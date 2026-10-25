@@ -61,9 +61,16 @@ export function canonicalizeApplicationUrl(url: string): string {
         .match(
             /^https:\/\/emp\.jobylon\.com\/(?:jobs\/(\d+)[^/]*|applications\/jobs\/(\d+))/i,
         );
-    return jobylonMatch
-        ? `https://emp.jobylon.com/jobs/${jobylonMatch[1] ?? jobylonMatch[2]}`
-        : parsedUrl.toString();
+    if (jobylonMatch) {
+        return `https://emp.jobylon.com/jobs/${jobylonMatch[1] ?? jobylonMatch[2]}`;
+    }
+
+    const rmJob = parsedUrl.searchParams.get('rmjob');
+    if (parsedUrl.hostname.includes('reachmee.com') && rmJob) {
+        return `https://${parsedUrl.hostname}/ext/job?rmjob=${rmJob}`;
+    }
+
+    return parsedUrl.toString();
 }
 
 export async function ingestFromSource(
@@ -94,6 +101,9 @@ export async function ingestFromSource(
             url: canonicalizeApplicationUrl(job.url.trim()),
             sourceUrl: job.sourceUrl.trim(),
         };
+        console.log(
+            `[Ingestion] Processing job: "${normalizedJob.title}" (url: ${normalizedJob.url}, sourceUrl: ${normalizedJob.sourceUrl}) from provider ${provider.name}`,
+        );
         const result = repository.upsert(normalizedJob, provider.name);
         summary[result === 'inserted' ? 'added' : 'updated'] += 1;
     }

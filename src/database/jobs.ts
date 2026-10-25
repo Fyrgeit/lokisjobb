@@ -132,9 +132,10 @@ export class JobsRepository {
             // ai_score untouched so local decisions survive re-ingestion.
             this.database
                 .prepare(
-                    'UPDATE jobs SET url = ?, description = ?, source_url = ?, last_seen_at = ?, application_deadline = ? WHERE id = ?',
+                    'UPDATE jobs SET title = ?, url = ?, description = ?, source_url = ?, last_seen_at = ?, application_deadline = ? WHERE id = ?',
                 )
                 .run(
+                    scrapedJob.title,
                     scrapedJob.url,
                     scrapedJob.description,
                     scrapedJob.sourceUrl,

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
+import { canonicalizeApplicationUrl } from '../scraper/ingestion.js';
 
 const schema = `
   CREATE TABLE IF NOT EXISTS jobs (
@@ -59,6 +60,117 @@ function migrateJobsTable(database: Database.Database): void {
     database.exec(
         "UPDATE jobs SET status = 'irrelevant' WHERE ai_score = 0 AND status = 'interested'",
     );
+
+    // Canonicalize job URLs and merge duplicates
+    const jobs = database.prepare('SELECT id, url FROM jobs').all() as Array<{
+        id: number;
+        url: string;
+    }>;
+    for (const job of jobs) {
+        try {
+            const canonicalUrl = canonicalizeApplicationUrl(job.url);
+            if (canonicalUrl !== job.url) {
+                const existing = database
+                    .prepare('SELECT id FROM jobs WHERE url = ? AND id <> ?')
+                    .get(canonicalUrl, job.id) as { id: number } | undefined;
+                if (existing) {
+                    database.transaction(() => {
+                        database
+                            .prepare(
+                                `
+                            INSERT OR IGNORE INTO job_sources
+                            SELECT ?, source_name, source_url, first_seen_at, last_seen_at, availability, checked_at
+                            FROM job_sources WHERE job_id = ?
+                        `,
+                            )
+                            .run(existing.id, job.id);
+                        database
+                            .prepare('DELETE FROM jobs WHERE id = ?')
+                            .run(job.id);
+                    })();
+                } else {
+                    database
+                        .prepare('UPDATE jobs SET url = ? WHERE id = ?')
+                        .run(canonicalUrl, job.id);
+                }
+            }
+        } catch {}
+    }
+
+    // Merge any duplicate jobs that have the same URL or source_url
+    const urlDuplicateGroups = database
+        .prepare(
+            `
+        SELECT url, COUNT(*) as cnt FROM jobs GROUP BY url HAVING cnt > 1
+    `,
+        )
+        .all() as Array<{ url: string }>;
+
+    for (const group of urlDuplicateGroups) {
+        const rows = database
+            .prepare(
+                'SELECT id FROM jobs WHERE url = ? ORDER BY discovered_at DESC',
+            )
+            .all(group.url) as Array<{ id: number }>;
+        if (rows.length > 1) {
+            const keepId = rows[0].id;
+            const duplicateIds = rows.slice(1).map((r) => r.id);
+
+            database.transaction(() => {
+                for (const dupId of duplicateIds) {
+                    database
+                        .prepare(
+                            `
+                        INSERT OR IGNORE INTO job_sources
+                        SELECT ?, source_name, source_url, first_seen_at, last_seen_at, availability, checked_at
+                        FROM job_sources WHERE job_id = ?
+                    `,
+                        )
+                        .run(keepId, dupId);
+                    database
+                        .prepare('DELETE FROM jobs WHERE id = ?')
+                        .run(dupId);
+                }
+            })();
+        }
+    }
+
+    const sourceDuplicateGroups = database
+        .prepare(
+            `
+        SELECT source_url, COUNT(*) as cnt FROM jobs WHERE source_url <> '' GROUP BY source_url HAVING cnt > 1
+    `,
+        )
+        .all() as Array<{ source_url: string }>;
+
+    for (const group of sourceDuplicateGroups) {
+        const rows = database
+            .prepare(
+                'SELECT id FROM jobs WHERE source_url = ? ORDER BY discovered_at DESC',
+            )
+            .all(group.source_url) as Array<{ id: number }>;
+        if (rows.length > 1) {
+            const keepId = rows[0].id;
+            const duplicateIds = rows.slice(1).map((r) => r.id);
+
+            database.transaction(() => {
+                for (const dupId of duplicateIds) {
+                    database
+                        .prepare(
+                            `
+                        INSERT OR IGNORE INTO job_sources
+                        SELECT ?, source_name, source_url, first_seen_at, last_seen_at, availability, checked_at
+                        FROM job_sources WHERE job_id = ?
+                    `,
+                        )
+                        .run(keepId, dupId);
+                    database
+                        .prepare('DELETE FROM jobs WHERE id = ?')
+                        .run(dupId);
+                }
+            })();
+        }
+    }
 }
 
 function inferSourceName(sourceUrl: string): string {

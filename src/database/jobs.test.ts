@@ -59,7 +59,7 @@ describe('JobsRepository.upsert', () => {
         ]);
     });
 
-    it('updates only last_seen_at for an existing URL', () => {
+    it('updates title and source-owned fields for an existing URL', () => {
         const repository = createRepository();
         repository.upsert(
             scrapedJob,
@@ -72,7 +72,7 @@ describe('JobsRepository.upsert', () => {
         repository.updateAiScore(firstJob.id, 0.85);
 
         // These values represent local decisions and must survive a source
-        // refresh even though source-owned fields are updated.
+        // refresh even though source-owned fields and title are updated.
         const result = repository.upsert(
             { ...scrapedJob, title: 'Updated title from source' },
             'first-source',
@@ -84,7 +84,7 @@ describe('JobsRepository.upsert', () => {
         assert.equal(repository.list().length, 1);
         assert.equal(job?.discoveredAt, '2026-01-01T10:00:00.000Z');
         assert.equal(job?.lastSeenAt, '2026-01-02T10:00:00.000Z');
-        assert.equal(job?.title, 'Lokförare');
+        assert.equal(job?.title, 'Updated title from source');
         assert.equal(job?.status, 'interested');
         assert.equal(job?.aiScore, 0.85);
     });
