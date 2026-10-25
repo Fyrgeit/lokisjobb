@@ -170,16 +170,69 @@
                         </svg>
                     </div>
 
-                    <select
-                        id="statusFilter"
-                        class="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    <div
+                        class="relative inline-block text-left"
+                        id="statusDropdownContainer"
                     >
-                        <option value="">All Statuses</option>
-                        <option value="new">New</option>
-                        <option value="interested">Interested</option>
-                        <option value="applied">Applied</option>
-                        <option value="rejected">Rejected</option>
-                    </select>
+                        <button
+                            type="button"
+                            id="statusDropdownButton"
+                            class="inline-flex justify-between items-center w-40 px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        >
+                            <span id="statusDropdownLabel">Status: All</span>
+                            <svg
+                                class="w-4 h-4 ml-2 -mr-1"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M19 9l-7 7-7-7"
+                                />
+                            </svg>
+                        </button>
+                        <div
+                            id="statusDropdownMenu"
+                            class="hidden origin-top-right absolute left-0 mt-2 w-48 rounded-lg shadow-lg bg-white ring-1 ring-black ring-opacity-5 p-2 z-10 space-y-1"
+                        >
+                            <label
+                                class="flex items-center px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer text-sm text-slate-700"
+                            >
+                                <input
+                                    type="checkbox"
+                                    name="statusFilter"
+                                    value="interested"
+                                    class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 mr-2"
+                                />
+                                Interested
+                            </label>
+                            <label
+                                class="flex items-center px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer text-sm text-slate-700"
+                            >
+                                <input
+                                    type="checkbox"
+                                    name="statusFilter"
+                                    value="applied"
+                                    class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 mr-2"
+                                />
+                                Applied
+                            </label>
+                            <label
+                                class="flex items-center px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer text-sm text-slate-700"
+                            >
+                                <input
+                                    type="checkbox"
+                                    name="statusFilter"
+                                    value="irrelevant"
+                                    class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 mr-2"
+                                />
+                                Irrelevant
+                            </label>
+                        </div>
+                    </div>
 
                     <select
                         id="availabilityFilter"
@@ -196,16 +249,6 @@
                         class="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     >
                         <option value="">All Providers</option>
-                    </select>
-
-                    <select
-                        id="aiScoreFilter"
-                        class="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                        <option value="hide-zero" selected>
-                            Hide AI Score 0
-                        </option>
-                        <option value="">All AI Scores</option>
                     </select>
                 </div>
 
@@ -229,6 +272,8 @@
                         <option value="score-asc">AI Score (Lowest)</option>
                         <option value="title-asc">Title (A-Z)</option>
                         <option value="company-asc">Company (A-Z)</option>
+                        <option value="deadline-asc">Deadline (Soonest)</option>
+                        <option value="deadline-desc">Deadline (Latest)</option>
                     </select>
                 </div>
             </section>

@@ -32,7 +32,20 @@ type SourceRow = {
     checked_at: string;
 };
 
-function deriveAvailability(sources: JobSourceRecord[]): SourceAvailability {
+function deriveAvailability(
+    sources: JobSourceRecord[],
+    applicationDeadline?: string | null,
+): SourceAvailability {
+    if (applicationDeadline) {
+        const deadlineDate = new Date(applicationDeadline);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        deadlineDate.setHours(0, 0, 0, 0);
+        if (!isNaN(deadlineDate.getTime()) && deadlineDate < today) {
+            return 'closed';
+        }
+    }
+
     if (sources.some((source) => source.availability === 'active')) {
         return 'active';
     }
@@ -63,7 +76,7 @@ function toJob(row: JobRow, sources: JobSourceRecord[]): Job {
         aiScore: row.ai_score,
         status: row.status,
         sources,
-        availability: deriveAvailability(sources),
+        availability: deriveAvailability(sources, row.application_deadline),
     };
 }
 
@@ -145,7 +158,7 @@ export class JobsRepository {
             .prepare(
                 `INSERT INTO jobs
           (title, company, location, url, source_url, description, application_deadline, discovered_at, last_seen_at, ai_score, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'new')`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'interested')`,
             )
             .run(
                 scrapedJob.title,
@@ -225,12 +238,15 @@ export class JobsRepository {
     }
 
     public updateAiScore(id: number, aiScore: number | null): void {
-        if (aiScore === 0) {
+        console.log(
+            `[JobsRepository] updateAiScore: id=${id}, aiScore=${aiScore}`,
+        );
+        if (aiScore !== null && aiScore <= 0) {
             this.database
                 .prepare(
                     'UPDATE jobs SET ai_score = ?, status = ? WHERE id = ?',
                 )
-                .run(aiScore, 'rejected', id);
+                .run(aiScore, 'irrelevant', id);
         } else {
             this.database
                 .prepare('UPDATE jobs SET ai_score = ? WHERE id = ?')

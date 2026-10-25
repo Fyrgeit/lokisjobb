@@ -44,7 +44,7 @@ describe('JobsRepository.upsert', () => {
         assert.equal(repository.list().length, 1);
         assert.equal(job?.discoveredAt, '2026-01-01T10:00:00.000Z');
         assert.equal(job?.lastSeenAt, '2026-01-01T10:00:00.000Z');
-        assert.equal(job?.status, 'new');
+        assert.equal(job?.status, 'interested');
         assert.equal(job?.aiScore, null);
         assert.equal(job?.applicationDeadline, '2026-01-15');
         assert.deepEqual(job?.sources, [
@@ -135,11 +135,11 @@ describe('JobsRepository.upsert', () => {
 
         const job = repository.findByUrl(scrapedJob.url);
         assert.equal(job?.availability, 'closed');
-        assert.equal(job?.status, 'new');
+        assert.equal(job?.status, 'interested');
         assert.equal(job?.sources[0]?.availability, 'closed');
     });
 
-    it('sets status to rejected when ai score is 0 and remembers it upon re-ingestion', () => {
+    it('sets status to irrelevant when ai score is 0 and remembers it upon re-ingestion', () => {
         const repository = createRepository();
         repository.upsert(
             scrapedJob,
@@ -152,7 +152,7 @@ describe('JobsRepository.upsert', () => {
 
         const jobAfterScore = repository.findByUrl(scrapedJob.url);
         assert.equal(jobAfterScore?.aiScore, 0);
-        assert.equal(jobAfterScore?.status, 'rejected');
+        assert.equal(jobAfterScore?.status, 'irrelevant');
 
         // Re-ingest the same job
         repository.upsert(
@@ -163,6 +163,22 @@ describe('JobsRepository.upsert', () => {
 
         const jobAfterReingest = repository.findByUrl(scrapedJob.url);
         assert.equal(jobAfterReingest?.aiScore, 0);
-        assert.equal(jobAfterReingest?.status, 'rejected');
+        assert.equal(jobAfterReingest?.status, 'irrelevant');
+    });
+
+    it('derives closed availability when application deadline has passed', () => {
+        const repository = createRepository();
+        repository.upsert(
+            {
+                ...scrapedJob,
+                url: 'https://example.com/jobs/expired',
+                applicationDeadline: '2020-01-01',
+            },
+            'test-source',
+            '2026-01-01T10:00:00.000Z',
+        );
+
+        const job = repository.findByUrl('https://example.com/jobs/expired');
+        assert.equal(job?.availability, 'closed');
     });
 });

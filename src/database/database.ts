@@ -15,7 +15,7 @@ const schema = `
     discovered_at TEXT NOT NULL,
     last_seen_at TEXT NOT NULL,
     ai_score REAL,
-    status TEXT NOT NULL DEFAULT 'new'
+    status TEXT NOT NULL DEFAULT 'interested'
   );
 
   CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
@@ -54,6 +54,11 @@ function migrateJobsTable(database: Database.Database): void {
         );
         database.exec("UPDATE jobs SET source_url = url WHERE source_url = ''");
     }
+
+    database.exec("UPDATE jobs SET status = 'interested' WHERE status = 'new'");
+    database.exec(
+        "UPDATE jobs SET status = 'irrelevant' WHERE ai_score = 0 AND status = 'interested'",
+    );
 }
 
 function inferSourceName(sourceUrl: string): string {

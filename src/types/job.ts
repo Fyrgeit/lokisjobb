@@ -1,4 +1,4 @@
-export type JobStatus = 'new' | 'interested' | 'rejected' | 'applied';
+export type JobStatus = 'interested' | 'irrelevant' | 'applied';
 export type SourceAvailability = 'active' | 'closed' | 'unknown';
 
 export interface JobSourceRecord {

@@ -1,10 +1,14 @@
 let allJobs = [];
 
 const searchInput = document.getElementById('searchInput');
-const statusFilter = document.getElementById('statusFilter');
+const statusDropdownButton = document.getElementById('statusDropdownButton');
+const statusDropdownMenu = document.getElementById('statusDropdownMenu');
+const statusDropdownLabel = document.getElementById('statusDropdownLabel');
+const statusCheckboxes = document.querySelectorAll(
+    'input[name="statusFilter"]',
+);
 const availabilityFilter = document.getElementById('availabilityFilter');
 const sourceFilter = document.getElementById('sourceFilter');
-const aiScoreFilter = document.getElementById('aiScoreFilter');
 const sortSelect = document.getElementById('sortSelect');
 const outputEl = document.getElementById('output');
 const refreshButton = document.getElementById('refreshButton');
@@ -90,10 +94,11 @@ function updateDashboard() {
 
     // 2. Filter & Sort
     const query = searchInput.value.toLowerCase().trim();
-    const statusVal = statusFilter.value;
+    const selectedStatuses = Array.from(statusCheckboxes)
+        .filter((c) => c.checked)
+        .map((c) => c.value);
     const availabilityVal = availabilityFilter.value;
     const sourceVal = sourceFilter.value;
-    const aiScoreVal = aiScoreFilter.value;
     const sortVal = sortSelect.value;
 
     let filtered = allJobs.filter((job) => {
@@ -103,24 +108,20 @@ function updateDashboard() {
             (job.company && job.company.toLowerCase().includes(query)) ||
             (job.location && job.location.toLowerCase().includes(query));
 
-        const matchesStatus = !statusVal || job.status === statusVal;
+        const matchesStatus =
+            selectedStatuses.length === 0 ||
+            selectedStatuses.includes(job.status);
         const matchesAvailability =
             !availabilityVal || job.availability === availabilityVal;
         const matchesSource =
             !sourceVal ||
             (job.sources && job.sources.some((s) => s.name === sourceVal));
 
-        let matchesAiScore = true;
-        if (aiScoreVal === 'hide-zero') {
-            matchesAiScore = job.aiScore !== 0;
-        }
-
         return (
             matchesQuery &&
             matchesStatus &&
             matchesAvailability &&
-            matchesSource &&
-            matchesAiScore
+            matchesSource
         );
     });
 
@@ -148,6 +149,24 @@ function updateDashboard() {
         if (sortVal === 'company-asc') {
             return (a.company || '').localeCompare(b.company || '');
         }
+        if (sortVal === 'deadline-asc') {
+            const dateA = a.applicationDeadline
+                ? new Date(a.applicationDeadline).getTime()
+                : Infinity;
+            const dateB = b.applicationDeadline
+                ? new Date(b.applicationDeadline).getTime()
+                : Infinity;
+            return dateA - dateB;
+        }
+        if (sortVal === 'deadline-desc') {
+            const dateA = a.applicationDeadline
+                ? new Date(a.applicationDeadline).getTime()
+                : -Infinity;
+            const dateB = b.applicationDeadline
+                ? new Date(b.applicationDeadline).getTime()
+                : -Infinity;
+            return dateB - dateA;
+        }
         return 0;
     });
 
@@ -170,10 +189,9 @@ function updateDashboard() {
             'bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between hover:shadow-md transition';
 
         const statusColors = {
-            new: 'bg-slate-100 text-slate-700',
             interested: 'bg-amber-50 text-amber-700 border border-amber-200',
             applied: 'bg-blue-50 text-blue-700 border border-blue-200',
-            rejected: 'bg-rose-50 text-rose-700 border border-rose-200',
+            irrelevant: 'bg-rose-50 text-rose-700 border border-rose-200',
         };
 
         const availabilityColors = {
@@ -241,10 +259,31 @@ function updateDashboard() {
 
 // Event Listeners
 searchInput.addEventListener('input', updateDashboard);
-statusFilter.addEventListener('change', updateDashboard);
+statusDropdownButton.addEventListener('click', (e) => {
+    e.stopPropagation();
+    statusDropdownMenu.classList.toggle('hidden');
+});
+document.addEventListener('click', (e) => {
+    const container = document.getElementById('statusDropdownContainer');
+    if (container && !container.contains(e.target)) {
+        statusDropdownMenu.classList.add('hidden');
+    }
+});
+statusCheckboxes.forEach((cb) => {
+    cb.addEventListener('change', () => {
+        const checked = Array.from(statusCheckboxes).filter((c) => c.checked);
+        if (checked.length === 0) {
+            statusDropdownLabel.textContent = 'Status: All';
+        } else if (checked.length === 1) {
+            statusDropdownLabel.textContent = `Status: ${checked[0].value.charAt(0).toUpperCase() + checked[0].value.slice(1)}`;
+        } else {
+            statusDropdownLabel.textContent = `Status: ${checked.length} selected`;
+        }
+        updateDashboard();
+    });
+});
 availabilityFilter.addEventListener('change', updateDashboard);
 sourceFilter.addEventListener('change', updateDashboard);
-aiScoreFilter.addEventListener('change', updateDashboard);
 sortSelect.addEventListener('change', updateDashboard);
 refreshButton.addEventListener('click', fetchJobs);
 

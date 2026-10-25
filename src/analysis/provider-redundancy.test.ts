@@ -17,7 +17,7 @@ describe('analyzeProviderRedundancy', () => {
                 discoveredAt: '2026-01-01T00:00:00.000Z',
                 lastSeenAt: '2026-01-01T00:00:00.000Z',
                 aiScore: null,
-                status: 'new',
+                status: 'interested',
                 availability: 'active',
                 sources: [
                     {
@@ -49,7 +49,7 @@ describe('analyzeProviderRedundancy', () => {
                 discoveredAt: '2026-01-01T00:00:00.000Z',
                 lastSeenAt: '2026-01-01T00:00:00.000Z',
                 aiScore: null,
-                status: 'new',
+                status: 'interested',
                 availability: 'active',
                 sources: [
                     {
@@ -73,7 +73,7 @@ describe('analyzeProviderRedundancy', () => {
                 discoveredAt: '2026-01-01T00:00:00.000Z',
                 lastSeenAt: '2026-01-01T00:00:00.000Z',
                 aiScore: null,
-                status: 'new',
+                status: 'interested',
                 availability: 'active',
                 sources: [
                     {
@@ -122,7 +122,7 @@ describe('analyzeProviderRedundancy', () => {
                 discoveredAt: '2026-01-01T00:00:00.000Z',
                 lastSeenAt: '2026-01-01T00:00:00.000Z',
                 aiScore: 0,
-                status: 'rejected',
+                status: 'irrelevant',
                 availability: 'active',
                 sources: [
                     {
@@ -146,7 +146,7 @@ describe('analyzeProviderRedundancy', () => {
                 discoveredAt: '2026-01-01T00:00:00.000Z',
                 lastSeenAt: '2026-01-01T00:00:00.000Z',
                 aiScore: 5,
-                status: 'new',
+                status: 'interested',
                 availability: 'active',
                 sources: [
                     {
