@@ -101,25 +101,25 @@
             </section>
 
             <!-- Action Runners Grid -->
-            <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <!-- Scraper Runner -->
+            <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Scraper & AI Evaluator Runner -->
                 <div
                     class="bg-slate-900 p-6 rounded-xl border border-slate-800 flex flex-col justify-between shadow-sm"
                 >
                     <div>
                         <div class="flex items-center justify-between mb-3">
                             <h3 class="font-bold text-lg text-white">
-                                Job Scraper
+                                Scraper & AI Evaluator
                             </h3>
                             <span
                                 class="text-xs bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded border border-emerald-800"
-                                >Ingestion</span
+                                >Pipeline</span
                             >
                         </div>
                         <p class="text-xs text-slate-400 mb-6">
                             Fetches fresh job listings across all configured
-                            providers (Arbetsformedlingen, Jobbland, etc.) and
-                            search queries.
+                            providers and automatically evaluates unevaluated
+                            jobs using Google Gemini AI.
                         </p>
                     </div>
                     <button
@@ -145,47 +145,7 @@
                                 d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                             />
                         </svg>
-                        Run Scraper
-                    </button>
-                </div>
-
-                <!-- Evaluator Runner -->
-                <div
-                    class="bg-slate-900 p-6 rounded-xl border border-slate-800 flex flex-col justify-between shadow-sm"
-                >
-                    <div>
-                        <div class="flex items-center justify-between mb-3">
-                            <h3 class="font-bold text-lg text-white">
-                                AI Evaluator
-                            </h3>
-                            <span
-                                class="text-xs bg-purple-950 text-purple-400 px-2 py-0.5 rounded border border-purple-800"
-                                >Gemini AI</span
-                            >
-                        </div>
-                        <p class="text-xs text-slate-400 mb-6">
-                            Evaluates unevaluated jobs using Google Gemini AI,
-                            scoring relevance and assigning reasoning/status.
-                        </p>
-                    </div>
-                    <button
-                        id="runEvaluatorBtn"
-                        class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-lg font-medium text-sm transition flex items-center justify-center gap-2 shadow"
-                    >
-                        <svg
-                            class="w-4 h-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M13 10V3L4 14h7v7l9-11h-7z"
-                            />
-                        </svg>
-                        Run AI Evaluator
+                        Run Scraper & AI Evaluator
                     </button>
                 </div>
 

@@ -67,6 +67,47 @@ async function main(): Promise<void> {
         console.log(`Total updated: ${totals.updated}`);
         console.log(`Total skipped: ${totals.skipped}`);
         console.log(`Database now contains ${repository.list().length} jobs`);
+
+        // Run AI Evaluation on unevaluated jobs
+        console.log(`\n--- AI Evaluation ---`);
+        if (!config.geminiApiKey) {
+            console.log(
+                'Skipping AI evaluation: GEMINI_API_KEY is not configured.',
+            );
+        } else {
+            const jobs = repository.list();
+            const unevaluatedJobs = jobs.filter((job) => job.aiScore === null);
+            console.log(
+                `Found ${unevaluatedJobs.length} unevaluated jobs out of ${jobs.length} total.`,
+            );
+
+            let evaluatedCount = 0;
+            for (const job of unevaluatedJobs) {
+                console.log(
+                    `Evaluating job #${job.id}: "${job.title}" at ${job.company ?? 'Unknown'}...`,
+                );
+                try {
+                    const { evaluateJobWithGemini } =
+                        await import('./evaluator/gemini-evaluator.js');
+                    const { score, reasoning } = await evaluateJobWithGemini(
+                        job,
+                        config.geminiApiKey,
+                        config.geminiModel,
+                    );
+                    repository.updateAiScore(job.id, score);
+                    console.log(` -> Score: ${score} (${reasoning})`);
+                    evaluatedCount++;
+                } catch (error: unknown) {
+                    console.error(
+                        `Failed to evaluate job #${job.id}:`,
+                        error instanceof Error ? error.message : error,
+                    );
+                }
+            }
+            console.log(
+                `AI evaluation complete. Evaluated ${evaluatedCount} jobs.`,
+            );
+        }
     } finally {
         database.close();
     }

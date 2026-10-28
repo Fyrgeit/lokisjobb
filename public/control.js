@@ -3,7 +3,6 @@ const statTotalSources = document.getElementById('statTotalSources');
 const statDbPath = document.getElementById('statDbPath');
 
 const runScraperBtn = document.getElementById('runScraperBtn');
-const runEvaluatorBtn = document.getElementById('runEvaluatorBtn');
 const runAnalyzerBtn = document.getElementById('runAnalyzerBtn');
 const clearLogsBtn = document.getElementById('clearLogsBtn');
 const terminalOutput = document.getElementById('terminalOutput');
@@ -60,8 +59,8 @@ async function fetchStats() {
 
 async function runScraper() {
     runScraperBtn.disabled = true;
-    runScraperBtn.textContent = 'Running Scraper...';
-    appendLog('Starting job scraper ingestion across all providers...');
+    runScraperBtn.textContent = 'Running Scraper & AI Evaluator...';
+    appendLog('Starting job scraper ingestion and AI evaluation pipeline...');
 
     try {
         const res = await fetch('/api/ops/run-scraper', { method: 'POST' });
@@ -71,44 +70,17 @@ async function runScraper() {
         }
         if (data.success) {
             appendLog(
-                `Scraper completed successfully. Found: ${data.totals.found}, Added: ${data.totals.added}, Updated: ${data.totals.updated}`,
+                `Pipeline completed successfully. Found: ${data.totals.found}, Added: ${data.totals.added}, Updated: ${data.totals.updated}, Evaluated: ${data.evaluatedCount}`,
             );
         } else {
-            appendLog(`Scraper failed: ${data.error}`, true);
+            appendLog(`Pipeline failed: ${data.error}`, true);
         }
         fetchStats();
     } catch (err) {
-        appendLog(`Scraper request failed: ${err.message}`, true);
+        appendLog(`Pipeline request failed: ${err.message}`, true);
     } finally {
         runScraperBtn.disabled = false;
-        runScraperBtn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Run Scraper`;
-    }
-}
-
-async function runEvaluator() {
-    runEvaluatorBtn.disabled = true;
-    runEvaluatorBtn.textContent = 'Evaluating Jobs...';
-    appendLog('Starting AI job evaluation with Gemini...');
-
-    try {
-        const res = await fetch('/api/ops/run-evaluator', { method: 'POST' });
-        const data = await parseResponse(res);
-        if (data.logs) {
-            data.logs.forEach((l) => appendLog(l));
-        }
-        if (data.success) {
-            appendLog(
-                `AI evaluation completed successfully. Evaluated ${data.evaluatedCount} jobs.`,
-            );
-        } else {
-            appendLog(`Evaluator failed: ${data.error}`, true);
-        }
-        fetchStats();
-    } catch (err) {
-        appendLog(`Evaluator request failed: ${err.message}`, true);
-    } finally {
-        runScraperBtn.disabled = false;
-        runScraperBtn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Run AI Evaluator`;
+        runScraperBtn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Run Scraper & AI Evaluator`;
     }
 }
 
@@ -200,7 +172,6 @@ async function loadTableInspector() {
 }
 
 runScraperBtn.addEventListener('click', runScraper);
-runEvaluatorBtn.addEventListener('click', runEvaluator);
 runAnalyzerBtn.addEventListener('click', runAnalyzer);
 refreshTableBtn.addEventListener('click', loadTableInspector);
 

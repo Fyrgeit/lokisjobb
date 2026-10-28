@@ -85,7 +85,7 @@ app.get('/api/database/tables/:tableName', (req, res) => {
     }
 });
 
-// Run Scraper (Ingestion) Operation
+// Run Scraper & AI Evaluator Pipeline Operation
 app.post('/api/ops/run-scraper', async (_req, res) => {
     const logs: string[] = [];
     const log = (msg: string) => {
@@ -133,13 +133,48 @@ app.post('/api/ops/run-scraper', async (_req, res) => {
             }
         }
 
-        log(`--- Overall Totals ---`);
+        log(`--- Overall Ingestion Totals ---`);
         log(
             `Total found: ${totals.found}, Added: ${totals.added}, Updated: ${totals.updated}`,
         );
+
+        // Run AI Evaluation
+        log(`\n--- AI Evaluation ---`);
+        let evaluatedCount = 0;
+        if (!config.geminiApiKey) {
+            log('Skipping AI evaluation: GEMINI_API_KEY is not configured.');
+        } else {
+            const jobs = repository.list();
+            const unevaluatedJobs = jobs.filter((job) => job.aiScore === null);
+            log(
+                `Found ${unevaluatedJobs.length} unevaluated jobs out of ${jobs.length} total.`,
+            );
+
+            for (const job of unevaluatedJobs) {
+                log(
+                    `Evaluating job #${job.id}: "${job.title}" at ${job.company ?? 'Unknown'}...`,
+                );
+                try {
+                    const { score, reasoning } = await evaluateJobWithGemini(
+                        job,
+                        config.geminiApiKey,
+                        config.geminiModel,
+                    );
+                    repository.updateAiScore(job.id, score);
+                    log(` -> Score: ${score} (${reasoning})`);
+                    evaluatedCount++;
+                } catch (error: unknown) {
+                    log(
+                        `Failed to evaluate job #${job.id}: ${error instanceof Error ? error.message : error}`,
+                    );
+                }
+            }
+            log(`AI evaluation complete. Evaluated ${evaluatedCount} jobs.`);
+        }
+
         database.close();
 
-        res.json({ success: true, totals, logs });
+        res.json({ success: true, totals, evaluatedCount, logs });
     } catch (error: unknown) {
         res.status(500).json({
             success: false,
