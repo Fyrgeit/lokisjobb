@@ -20,6 +20,32 @@ app.use(express.json());
 // Serve everything in /public
 app.use(express.static(path.join(process.cwd(), 'public')));
 
+function createOpsLogStream(res: express.Response) {
+    res.status(200).type('application/x-ndjson');
+    res.flushHeaders();
+
+    const send = (event: Record<string, unknown>) => {
+        res.write(`${JSON.stringify(event)}\n`);
+    };
+
+    return {
+        log(message: string) {
+            console.log(message);
+            send({ type: 'log', message });
+        },
+        complete(result: Record<string, unknown>) {
+            send({ type: 'result', ...result });
+            res.end();
+        },
+        fail(error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            console.error(error);
+            send({ type: 'error', message });
+            res.end();
+        },
+    };
+}
+
 async function runScraperIngestion(
     searchQueries: string[],
     repository: JobsRepository,
@@ -130,11 +156,8 @@ app.get('/api/database/tables/:tableName', (req, res) => {
 
 // Run Scraper & AI Evaluator Pipeline Operation
 app.post('/api/ops/run-scraper', async (_req, res) => {
-    const logs: string[] = [];
-    const log = (msg: string) => {
-        logs.push(msg);
-        console.log(msg);
-    };
+    const stream = createOpsLogStream(res);
+    const log = stream.log;
 
     try {
         const config = getConfig();
@@ -194,23 +217,16 @@ app.post('/api/ops/run-scraper', async (_req, res) => {
 
         database.close();
 
-        res.json({ success: true, totals, evaluatedCount, logs });
+        stream.complete({ success: true, totals, evaluatedCount });
     } catch (error: unknown) {
-        res.status(500).json({
-            success: false,
-            error: error instanceof Error ? error.message : String(error),
-            logs,
-        });
+        stream.fail(error);
     }
 });
 
 // Run Scraper Operation
 app.post('/api/ops/run-scraper-only', async (_req, res) => {
-    const logs: string[] = [];
-    const log = (msg: string) => {
-        logs.push(msg);
-        console.log(msg);
-    };
+    const stream = createOpsLogStream(res);
+    const log = stream.log;
 
     try {
         const config = getConfig();
@@ -228,23 +244,15 @@ app.post('/api/ops/run-scraper-only', async (_req, res) => {
             `Total found: ${totals.found}, Added: ${totals.added}, Updated: ${totals.updated}`,
         );
 
-        res.json({ success: true, totals, logs });
+        stream.complete({ success: true, totals });
     } catch (error: unknown) {
-        res.status(500).json({
-            success: false,
-            error: error instanceof Error ? error.message : String(error),
-            logs,
-        });
+        stream.fail(error);
     }
 });
 
 // Run Evaluator (AI Gemini) Operation
 app.post('/api/ops/run-evaluator', async (_req, res) => {
-    const logs: string[] = [];
-    const log = (msg: string) => {
-        logs.push(msg);
-        console.log(msg);
-    };
+    let stream: ReturnType<typeof createOpsLogStream> | undefined;
 
     try {
         const config = getConfig();
@@ -256,6 +264,8 @@ app.post('/api/ops/run-evaluator', async (_req, res) => {
             return;
         }
 
+        stream = createOpsLogStream(res);
+        const log = stream.log;
         const database = createDatabase(config.databasePath);
         const repository = new JobsRepository(database);
         const jobs = repository.list();
@@ -295,13 +305,16 @@ app.post('/api/ops/run-evaluator', async (_req, res) => {
         log(
             `Evaluation complete. Graded: ${evaluatedCount}, failed: ${failedCount}, still unknown: ${remainingUnknownCount}.`,
         );
-        res.json({ success: true, evaluatedCount, logs });
+        stream.complete({ success: true, evaluatedCount });
     } catch (error: unknown) {
-        res.status(500).json({
-            success: false,
-            error: error instanceof Error ? error.message : String(error),
-            logs,
-        });
+        if (stream) {
+            stream.fail(error);
+        } else {
+            res.status(500).json({
+                success: false,
+                error: error instanceof Error ? error.message : String(error),
+            });
+        }
     }
 });
 

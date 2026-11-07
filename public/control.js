@@ -45,6 +45,59 @@ async function parseResponse(res) {
     return data;
 }
 
+async function consumeOperationStream(res) {
+    if (!res.ok) {
+        await parseResponse(res);
+        throw new Error(`HTTP error ${res.status} ${res.statusText}`);
+    }
+    if (!res.body) {
+        throw new Error('Server response does not support streaming.');
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let result;
+
+    function processLine(line) {
+        if (!line.trim()) return;
+
+        let event;
+        try {
+            event = JSON.parse(line);
+        } catch {
+            throw new Error(`Invalid operation stream event: ${line}`);
+        }
+
+        if (event.type === 'log') {
+            appendLog(event.message);
+        } else if (event.type === 'result') {
+            result = event;
+        } else if (event.type === 'error') {
+            throw new Error(event.message);
+        } else {
+            throw new Error(`Unknown operation stream event: ${event.type}`);
+        }
+    }
+
+    while (true) {
+        const { done, value } = await reader.read();
+        buffer += decoder.decode(value, { stream: !done });
+
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        lines.forEach(processLine);
+
+        if (done) break;
+    }
+    processLine(buffer);
+
+    if (!result) {
+        throw new Error('Operation stream ended without a result.');
+    }
+    return result;
+}
+
 async function fetchStats() {
     try {
         const res = await fetch('/api/database/stats');
@@ -66,10 +119,7 @@ async function runScraper() {
 
     try {
         const res = await fetch('/api/ops/run-scraper', { method: 'POST' });
-        const data = await parseResponse(res);
-        if (data.logs) {
-            data.logs.forEach((l) => appendLog(l));
-        }
+        const data = await consumeOperationStream(res);
         if (data.success) {
             appendLog(
                 `Pipeline completed successfully. Found: ${data.totals.found}, Added: ${data.totals.added}, Updated: ${data.totals.updated}, Evaluated: ${data.evaluatedCount}`,
@@ -93,10 +143,7 @@ async function runScraperOnly() {
 
     try {
         const res = await fetch('/api/ops/run-scraper-only', { method: 'POST' });
-        const data = await parseResponse(res);
-        if (data.logs) {
-            data.logs.forEach((l) => appendLog(l));
-        }
+        const data = await consumeOperationStream(res);
         if (data.success) {
             appendLog(
                 `Scraper completed successfully. Found: ${data.totals.found}, Added: ${data.totals.added}, Updated: ${data.totals.updated}`,
@@ -120,10 +167,7 @@ async function runEvaluator() {
 
     try {
         const res = await fetch('/api/ops/run-evaluator', { method: 'POST' });
-        const data = await parseResponse(res);
-        if (data.logs) {
-            data.logs.forEach((l) => appendLog(l));
-        }
+        const data = await consumeOperationStream(res);
         if (data.success) {
             appendLog(
                 `AI evaluation completed successfully. Evaluated: ${data.evaluatedCount}`,

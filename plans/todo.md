@@ -2,8 +2,6 @@
 
 - Refactoring. The codebase has been edited by dumber models, so go through all code files. Break out functions where needed. Avoid repeated code. I want to see a decrease in line count. There are already lots of files, so dont separate it any more.
 
-- Make ops terminal update in real time, right now when doing ai evaluation, it doesnt update until all jobs are done evaluating.
-
 - Remove status entirely. The irrelevant tag is not needed, and itll be a while until i actually start applying to jobs.
 
 - Improve the filter systems. The ai categories doesnt filter at all right now and i want it to be multi selectable. Sort by ai category? Default activated filters?
