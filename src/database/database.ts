@@ -15,11 +15,8 @@ const schema = `
     application_deadline TEXT,
     discovered_at TEXT NOT NULL,
     last_seen_at TEXT NOT NULL,
-    ai_category TEXT,
-    status TEXT NOT NULL DEFAULT 'interested'
+    ai_category TEXT
   );
-
-  CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 
     CREATE TABLE IF NOT EXISTS job_sources (
         job_id INTEGER NOT NULL,
@@ -71,11 +68,9 @@ function migrateJobsTable(database: Database.Database): void {
         )
     `);
 
-    database.exec("UPDATE jobs SET status = 'interested' WHERE status = 'new'");
-    if (columns.some((column) => column.name === 'ai_score')) {
-        database.exec(
-            "UPDATE jobs SET status = 'irrelevant' WHERE ai_score = 0 AND status = 'interested'",
-        );
+    if (columns.some((column) => column.name === 'status')) {
+        database.exec('DROP INDEX IF EXISTS idx_jobs_status');
+        database.exec('ALTER TABLE jobs DROP COLUMN status');
     }
 
     // Canonicalize job URLs and merge duplicates

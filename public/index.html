@@ -64,7 +64,7 @@
             <!-- Stats Bar -->
             <section
                 id="statsBar"
-                class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4"
+                class="grid grid-cols-2 sm:grid-cols-3 gap-4"
             >
                 <div
                     class="bg-white p-5 rounded-xl shadow-sm border border-slate-200"
@@ -92,36 +92,6 @@
                     <p
                         id="statActive"
                         class="text-2xl font-bold text-emerald-600 mt-1"
-                    >
-                        0
-                    </p>
-                </div>
-                <div
-                    class="bg-white p-5 rounded-xl shadow-sm border border-slate-200"
-                >
-                    <p
-                        class="text-xs font-semibold text-slate-500 uppercase tracking-wider"
-                    >
-                        Interested
-                    </p>
-                    <p
-                        id="statInterested"
-                        class="text-2xl font-bold text-amber-600 mt-1"
-                    >
-                        0
-                    </p>
-                </div>
-                <div
-                    class="bg-white p-5 rounded-xl shadow-sm border border-slate-200"
-                >
-                    <p
-                        class="text-xs font-semibold text-slate-500 uppercase tracking-wider"
-                    >
-                        Applied
-                    </p>
-                    <p
-                        id="statApplied"
-                        class="text-2xl font-bold text-blue-600 mt-1"
                     >
                         0
                     </p>
@@ -172,14 +142,14 @@
 
                     <div
                         class="relative inline-block text-left"
-                        id="statusDropdownContainer"
+                        id="categoryDropdownContainer"
                     >
                         <button
                             type="button"
-                            id="statusDropdownButton"
-                            class="inline-flex justify-between items-center w-40 px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            id="categoryDropdownButton"
+                            class="inline-flex justify-between items-center w-48 px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         >
-                            <span id="statusDropdownLabel">Status: All</span>
+                            <span id="categoryDropdownLabel">All AI Categories</span>
                             <svg
                                 class="w-4 h-4 ml-2 -mr-1"
                                 fill="none"
@@ -195,57 +165,35 @@
                             </svg>
                         </button>
                         <div
-                            id="statusDropdownMenu"
+                            id="categoryDropdownMenu"
                             class="hidden origin-top-right absolute left-0 mt-2 w-48 rounded-lg shadow-lg bg-white ring-1 ring-black ring-opacity-5 p-2 z-10 space-y-1"
                         >
-                            <label
-                                class="flex items-center px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer text-sm text-slate-700"
-                            >
-                                <input
-                                    type="checkbox"
-                                    name="statusFilter"
-                                    value="interested"
-                                    class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 mr-2"
-                                />
-                                Interested
+                            <label class="flex items-center px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer text-sm text-slate-700">
+                                <input type="checkbox" name="categoryFilter" value="Persontåg" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 mr-2" />
+                                Persontåg
                             </label>
-                            <label
-                                class="flex items-center px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer text-sm text-slate-700"
-                            >
-                                <input
-                                    type="checkbox"
-                                    name="statusFilter"
-                                    value="applied"
-                                    class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 mr-2"
-                                />
-                                Applied
+                            <label class="flex items-center px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer text-sm text-slate-700">
+                                <input type="checkbox" name="categoryFilter" value="Godståg" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 mr-2" />
+                                Godståg
                             </label>
-                            <label
-                                class="flex items-center px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer text-sm text-slate-700"
-                            >
-                                <input
-                                    type="checkbox"
-                                    name="statusFilter"
-                                    value="irrelevant"
-                                    class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 mr-2"
-                                />
-                                Irrelevant
+                            <label class="flex items-center px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer text-sm text-slate-700">
+                                <input type="checkbox" name="categoryFilter" value="Växlare" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 mr-2" />
+                                Växlare
+                            </label>
+                            <label class="flex items-center px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer text-sm text-slate-700">
+                                <input type="checkbox" name="categoryFilter" value="Intressant" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 mr-2" />
+                                Intressant
+                            </label>
+                            <label class="flex items-center px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer text-sm text-slate-700">
+                                <input type="checkbox" name="categoryFilter" value="Ointressant" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 mr-2" />
+                                Ointressant
+                            </label>
+                            <label class="flex items-center px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer text-sm text-slate-700">
+                                <input type="checkbox" name="categoryFilter" value="Okänd" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 mr-2" />
+                                Okänd
                             </label>
                         </div>
                     </div>
-
-                    <select
-                        id="categoryFilter"
-                        class="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                        <option value="">All AI Categories</option>
-                        <option value="Persontåg">Persontåg</option>
-                        <option value="Godståg">Godståg</option>
-                        <option value="Växlare">Växlare</option>
-                        <option value="Intressant">Intressant</option>
-                        <option value="Ointressant">Ointressant</option>
-                        <option value="Okänd">Okänd</option>
-                    </select>
 
                     <select
                         id="availabilityFilter"

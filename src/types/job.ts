@@ -1,4 +1,3 @@
-export type JobStatus = 'interested' | 'irrelevant' | 'applied';
 export type SourceAvailability = 'active' | 'closed' | 'unknown';
 export type AiCategory =
     | 'Persontåg'
@@ -36,7 +35,6 @@ export interface Job extends Omit<ScrapedJob, 'sourceUrl'> {
     discoveredAt: string;
     lastSeenAt: string;
     aiCategory: AiCategory | null;
-    status: JobStatus;
     sources: JobSourceRecord[];
     availability: SourceAvailability;
 }

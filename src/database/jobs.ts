@@ -2,7 +2,6 @@ import Database from 'better-sqlite3';
 import type {
     Job,
     JobSourceRecord,
-    JobStatus,
     AiCategory,
     ScrapedJob,
     SourceAvailability,
@@ -21,7 +20,6 @@ type JobRow = {
     discovered_at: string;
     last_seen_at: string;
     ai_category: AiCategory | null;
-    status: JobStatus;
 };
 
 type SourceRow = {
@@ -75,7 +73,6 @@ function toJob(row: JobRow, sources: JobSourceRecord[]): Job {
         discoveredAt: row.discovered_at,
         lastSeenAt: row.last_seen_at,
         aiCategory: row.ai_category,
-        status: row.status,
         sources,
         availability: deriveAvailability(sources, row.application_deadline),
     };
@@ -129,8 +126,8 @@ export class JobsRepository {
         const existing = canonicalJob ?? sourceJob;
 
         if (existing) {
-            // Refresh source-owned fields, but leave discovered_at, status, and
-            // ai_category untouched so existing evaluations survive re-ingestion.
+            // Leave discovered_at and ai_category untouched so evaluations
+            // survive re-ingestion.
             this.database
                 .prepare(
                     'UPDATE jobs SET title = ?, url = ?, description = ?, source_url = ?, last_seen_at = ?, application_deadline = ? WHERE id = ?',
@@ -154,13 +151,13 @@ export class JobsRepository {
             return 'updated';
         }
 
-        // New jobs start with local defaults. The evaluator can fill ai_category
-        // later without changing the source or ingestion layers.
+        // The evaluator can fill ai_category later without changing the source
+        // or ingestion layers.
         this.database
             .prepare(
                 `INSERT INTO jobs
-          (title, company, location, url, source_url, description, application_deadline, discovered_at, last_seen_at, ai_category, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'interested')`,
+          (title, company, location, url, source_url, description, application_deadline, discovered_at, last_seen_at, ai_category)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
             )
             .run(
                 scrapedJob.title,
@@ -240,22 +237,8 @@ export class JobsRepository {
     }
 
     public updateAiCategory(id: number, category: AiCategory): void {
-        if (category === 'Ointressant') {
-            this.database
-                .prepare(
-                    'UPDATE jobs SET ai_category = ?, status = ? WHERE id = ?',
-                )
-                .run(category, 'irrelevant', id);
-        } else {
-            this.database
-                .prepare('UPDATE jobs SET ai_category = ? WHERE id = ?')
-                .run(category, id);
-        }
-    }
-
-    public updateStatus(id: number, status: JobStatus): void {
         this.database
-            .prepare('UPDATE jobs SET status = ? WHERE id = ?')
-            .run(status, id);
+            .prepare('UPDATE jobs SET ai_category = ? WHERE id = ?')
+            .run(category, id);
     }
 }

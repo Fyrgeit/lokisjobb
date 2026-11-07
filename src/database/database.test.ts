@@ -28,6 +28,7 @@ it('adds AI categories to an existing score-based database', () => {
                 ai_score REAL,
                 status TEXT NOT NULL DEFAULT 'interested'
             );
+            CREATE INDEX idx_jobs_status ON jobs(status);
             INSERT INTO jobs
                 (title, url, discovered_at, last_seen_at, ai_score, status)
             VALUES
@@ -38,16 +39,24 @@ it('adds AI categories to an existing score-based database', () => {
 
         database = createDatabase(databasePath);
         const migratedJob = database
-            .prepare('SELECT ai_category, ai_score, status FROM jobs WHERE id = 1')
+            .prepare('SELECT ai_category, ai_score FROM jobs WHERE id = 1')
             .get() as {
             ai_category: string | null;
             ai_score: number;
-            status: string;
         };
 
         assert.equal(migratedJob.ai_category, null);
         assert.equal(migratedJob.ai_score, 0);
-        assert.equal(migratedJob.status, 'irrelevant');
+        const columns = database
+            .prepare('PRAGMA table_info(jobs)')
+            .all() as Array<{ name: string }>;
+        assert.equal(columns.some((column) => column.name === 'status'), false);
+        const statusIndex = database
+            .prepare(
+                "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_jobs_status'",
+            )
+            .get();
+        assert.equal(statusIndex, undefined);
     } finally {
         database?.close();
         fs.rmSync(directory, { recursive: true, force: true });
@@ -100,6 +109,10 @@ it('marks categories from the previous taxonomy unevaluated for reclassification
             { ai_category: null },
             { ai_category: 'Växlare' },
         ]);
+        const columns = database
+            .prepare('PRAGMA table_info(jobs)')
+            .all() as Array<{ name: string }>;
+        assert.equal(columns.some((column) => column.name === 'status'), false);
     } finally {
         database?.close();
         fs.rmSync(directory, { recursive: true, force: true });

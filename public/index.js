@@ -2,13 +2,12 @@ let allJobs = [];
 let currentView = localStorage.getItem('lokisjobb_view') || 'card';
 
 const searchInput = document.getElementById('searchInput');
-const statusDropdownButton = document.getElementById('statusDropdownButton');
-const statusDropdownMenu = document.getElementById('statusDropdownMenu');
-const statusDropdownLabel = document.getElementById('statusDropdownLabel');
-const statusCheckboxes = document.querySelectorAll(
-    'input[name="statusFilter"]',
+const categoryDropdownButton = document.getElementById('categoryDropdownButton');
+const categoryDropdownMenu = document.getElementById('categoryDropdownMenu');
+const categoryDropdownLabel = document.getElementById('categoryDropdownLabel');
+const categoryCheckboxes = document.querySelectorAll(
+    'input[name="categoryFilter"]',
 );
-const categoryFilter = document.getElementById('categoryFilter');
 const availabilityFilter = document.getElementById('availabilityFilter');
 const sourceFilter = document.getElementById('sourceFilter');
 const sortSelect = document.getElementById('sortSelect');
@@ -20,8 +19,6 @@ const listViewBtn = document.getElementById('listViewBtn');
 
 const statTotal = document.getElementById('statTotal');
 const statActive = document.getElementById('statActive');
-const statInterested = document.getElementById('statInterested');
-const statApplied = document.getElementById('statApplied');
 const statAiCategory = document.getElementById('statAiCategory');
 
 const categoryOrder = [
@@ -87,23 +84,17 @@ function updateDashboard() {
     // 1. Calculate Stats
     const total = allJobs.length;
     const active = allJobs.filter((j) => j.availability === 'active').length;
-    const interested = allJobs.filter((j) => j.status === 'interested').length;
-    const applied = allJobs.filter((j) => j.status === 'applied').length;
-
     const categorizedJobs = allJobs.filter((j) => j.aiCategory);
 
     statTotal.textContent = total;
     statActive.textContent = active;
-    statInterested.textContent = interested;
-    statApplied.textContent = applied;
     statAiCategory.textContent = categorizedJobs.length;
 
     // 2. Filter & Sort
     const query = searchInput.value.toLowerCase().trim();
-    const selectedStatuses = Array.from(statusCheckboxes)
-        .filter((c) => c.checked)
-        .map((c) => c.value);
-    const categoryVal = categoryFilter.value;
+    const selectedCategories = Array.from(categoryCheckboxes)
+        .filter((checkbox) => checkbox.checked)
+        .map((checkbox) => checkbox.value);
     const availabilityVal = availabilityFilter.value;
     const sourceVal = sourceFilter.value;
     const sortVal = sortSelect.value;
@@ -115,11 +106,9 @@ function updateDashboard() {
             (job.company && job.company.toLowerCase().includes(query)) ||
             (job.location && job.location.toLowerCase().includes(query));
 
-        const matchesStatus =
-            selectedStatuses.length === 0 ||
-            selectedStatuses.includes(job.status);
         const matchesCategory =
-            !categoryVal || (job.aiCategory ?? 'Okänd') === categoryVal;
+            selectedCategories.length === 0 ||
+            selectedCategories.includes(job.aiCategory ?? 'Okänd');
         const matchesAvailability =
             !availabilityVal || job.availability === availabilityVal;
         const matchesSource =
@@ -128,7 +117,6 @@ function updateDashboard() {
 
         return (
             matchesQuery &&
-            matchesStatus &&
             matchesCategory &&
             matchesAvailability &&
             matchesSource
@@ -148,9 +136,12 @@ function updateDashboard() {
             );
         }
         if (sortVal === 'category-asc') {
-            return (
+            const categoryComparison =
                 categoryOrder.indexOf(a.aiCategory ?? 'Okänd') -
-                categoryOrder.indexOf(b.aiCategory ?? 'Okänd')
+                categoryOrder.indexOf(b.aiCategory ?? 'Okänd');
+            return (
+                categoryComparison ||
+                (a.title || '').localeCompare(b.title || '')
             );
         }
         if (sortVal === 'title-asc') {
@@ -210,12 +201,6 @@ function updateDashboard() {
     }
 
     filtered.forEach((job) => {
-        const statusColors = {
-            interested: 'bg-amber-50 text-amber-700 border border-amber-200',
-            applied: 'bg-blue-50 text-blue-700 border border-blue-200',
-            irrelevant: 'bg-rose-50 text-rose-700 border border-rose-200',
-        };
-
         const availabilityColors = {
             active: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
             closed: 'bg-slate-100 text-slate-500',
@@ -250,9 +235,6 @@ function updateDashboard() {
 
             row.innerHTML = `
                 <div class="flex items-center gap-3 flex-wrap min-w-0 flex-1">
-                    <span class="text-xs px-2 py-0.5 rounded font-medium uppercase tracking-wider whitespace-nowrap ${statusColors[job.status] || 'bg-slate-100 text-slate-700'}">
-                        ${job.status}
-                    </span>
                     <span class="text-xs px-2 py-0.5 rounded font-medium whitespace-nowrap ${availabilityColors[job.availability] || 'bg-slate-100 text-slate-600'}">
                         ${job.availability}
                     </span>
@@ -286,9 +268,6 @@ function updateDashboard() {
             card.innerHTML = `
                 <div>
                     <div class="flex items-start justify-between gap-2 mb-2">
-                        <span class="text-xs px-2.5 py-1 rounded-lg font-medium uppercase tracking-wider ${statusColors[job.status] || 'bg-slate-100 text-slate-700'}">
-                            ${job.status}
-                        </span>
                         <div class="flex items-center gap-2">
                             <span class="text-xs px-2.5 py-1 rounded-lg font-medium ${availabilityColors[job.availability] || 'bg-slate-100 text-slate-600'}">
                                 ${job.availability}
@@ -327,25 +306,29 @@ function updateDashboard() {
 
 // Event Listeners
 searchInput.addEventListener('input', updateDashboard);
-statusDropdownButton.addEventListener('click', (e) => {
-    e.stopPropagation();
-    statusDropdownMenu.classList.toggle('hidden');
-});
 document.addEventListener('click', (e) => {
-    const container = document.getElementById('statusDropdownContainer');
-    if (container && !container.contains(e.target)) {
-        statusDropdownMenu.classList.add('hidden');
+    const categoryContainer = document.getElementById(
+        'categoryDropdownContainer',
+    );
+    if (categoryContainer && !categoryContainer.contains(e.target)) {
+        categoryDropdownMenu.classList.add('hidden');
     }
 });
-statusCheckboxes.forEach((cb) => {
-    cb.addEventListener('change', () => {
-        const checked = Array.from(statusCheckboxes).filter((c) => c.checked);
+categoryDropdownButton.addEventListener('click', (e) => {
+    e.stopPropagation();
+    categoryDropdownMenu.classList.toggle('hidden');
+});
+categoryCheckboxes.forEach((checkbox) => {
+    checkbox.addEventListener('change', () => {
+        const checked = Array.from(categoryCheckboxes).filter(
+            (item) => item.checked,
+        );
         if (checked.length === 0) {
-            statusDropdownLabel.textContent = 'Status: All';
+            categoryDropdownLabel.textContent = 'All AI Categories';
         } else if (checked.length === 1) {
-            statusDropdownLabel.textContent = `Status: ${checked[0].value.charAt(0).toUpperCase() + checked[0].value.slice(1)}`;
+            categoryDropdownLabel.textContent = checked[0].value;
         } else {
-            statusDropdownLabel.textContent = `Status: ${checked.length} selected`;
+            categoryDropdownLabel.textContent = `${checked.length} categories selected`;
         }
         updateDashboard();
     });

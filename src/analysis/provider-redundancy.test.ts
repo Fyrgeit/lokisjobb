@@ -17,7 +17,6 @@ describe('analyzeProviderRedundancy', () => {
                 discoveredAt: '2026-01-01T00:00:00.000Z',
                 lastSeenAt: '2026-01-01T00:00:00.000Z',
                 aiCategory: null,
-                status: 'interested',
                 availability: 'active',
                 sources: [
                     {
@@ -49,7 +48,6 @@ describe('analyzeProviderRedundancy', () => {
                 discoveredAt: '2026-01-01T00:00:00.000Z',
                 lastSeenAt: '2026-01-01T00:00:00.000Z',
                 aiCategory: null,
-                status: 'interested',
                 availability: 'active',
                 sources: [
                     {
@@ -73,7 +71,6 @@ describe('analyzeProviderRedundancy', () => {
                 discoveredAt: '2026-01-01T00:00:00.000Z',
                 lastSeenAt: '2026-01-01T00:00:00.000Z',
                 aiCategory: null,
-                status: 'interested',
                 availability: 'active',
                 sources: [
                     {
@@ -122,7 +119,6 @@ describe('analyzeProviderRedundancy', () => {
                 discoveredAt: '2026-01-01T00:00:00.000Z',
                 lastSeenAt: '2026-01-01T00:00:00.000Z',
                 aiCategory: 'Ointressant',
-                status: 'irrelevant',
                 availability: 'active',
                 sources: [
                     {
@@ -146,7 +142,6 @@ describe('analyzeProviderRedundancy', () => {
                 discoveredAt: '2026-01-01T00:00:00.000Z',
                 lastSeenAt: '2026-01-01T00:00:00.000Z',
                 aiCategory: 'Godståg',
-                status: 'interested',
                 availability: 'active',
                 sources: [
                     {

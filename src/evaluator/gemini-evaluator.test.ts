@@ -16,7 +16,6 @@ describe('evaluateJobWithGemini', () => {
             discoveredAt: '2026-01-01T00:00:00.000Z',
             lastSeenAt: '2026-01-01T00:00:00.000Z',
             aiCategory: null,
-            status: 'interested',
             availability: 'active',
             sources: [],
         };
@@ -62,7 +61,6 @@ describe('evaluateJobWithGemini', () => {
             discoveredAt: '2026-01-01T00:00:00.000Z',
             lastSeenAt: '2026-01-01T00:00:00.000Z',
             aiCategory: null,
-            status: 'interested',
             availability: 'active',
             sources: [],
         };
@@ -95,7 +93,6 @@ describe('evaluateJobWithGemini', () => {
             discoveredAt: '2026-01-01T00:00:00.000Z',
             lastSeenAt: '2026-01-01T00:00:00.000Z',
             aiCategory: null,
-            status: 'interested',
             availability: 'active',
             sources: [],
         };

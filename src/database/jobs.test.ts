@@ -44,7 +44,6 @@ describe('JobsRepository.upsert', () => {
         assert.equal(repository.list().length, 1);
         assert.equal(job?.discoveredAt, '2026-01-01T10:00:00.000Z');
         assert.equal(job?.lastSeenAt, '2026-01-01T10:00:00.000Z');
-        assert.equal(job?.status, 'interested');
         assert.equal(job?.aiCategory, null);
         assert.equal(job?.applicationDeadline, '2026-01-15');
         assert.deepEqual(job?.sources, [
@@ -68,11 +67,10 @@ describe('JobsRepository.upsert', () => {
         );
         const firstJob = repository.findByUrl(scrapedJob.url);
         assert.ok(firstJob);
-        repository.updateStatus(firstJob.id, 'interested');
         repository.updateAiCategory(firstJob.id, 'Persontåg');
 
-        // These values represent local decisions and must survive a source
-        // refresh even though source-owned fields and title are updated.
+        // AI evaluations must survive a source refresh even though the source-
+        // owned fields and title are updated.
         const result = repository.upsert(
             { ...scrapedJob, title: 'Updated title from source' },
             'first-source',
@@ -85,7 +83,6 @@ describe('JobsRepository.upsert', () => {
         assert.equal(job?.discoveredAt, '2026-01-01T10:00:00.000Z');
         assert.equal(job?.lastSeenAt, '2026-01-02T10:00:00.000Z');
         assert.equal(job?.title, 'Updated title from source');
-        assert.equal(job?.status, 'interested');
         assert.equal(job?.aiCategory, 'Persontåg');
     });
 
@@ -135,11 +132,10 @@ describe('JobsRepository.upsert', () => {
 
         const job = repository.findByUrl(scrapedJob.url);
         assert.equal(job?.availability, 'closed');
-        assert.equal(job?.status, 'interested');
         assert.equal(job?.sources[0]?.availability, 'closed');
     });
 
-    it('sets status to irrelevant for uninteresting jobs and remembers it upon re-ingestion', () => {
+    it('preserves AI category for uninteresting jobs upon re-ingestion', () => {
         const repository = createRepository();
         repository.upsert(
             scrapedJob,
@@ -152,7 +148,6 @@ describe('JobsRepository.upsert', () => {
 
         const jobAfterCategory = repository.findByUrl(scrapedJob.url);
         assert.equal(jobAfterCategory?.aiCategory, 'Ointressant');
-        assert.equal(jobAfterCategory?.status, 'irrelevant');
 
         // Re-ingest the same job
         repository.upsert(
@@ -163,7 +158,6 @@ describe('JobsRepository.upsert', () => {
 
         const jobAfterReingest = repository.findByUrl(scrapedJob.url);
         assert.equal(jobAfterReingest?.aiCategory, 'Ointressant');
-        assert.equal(jobAfterReingest?.status, 'irrelevant');
     });
 
     it('derives closed availability when application deadline has passed', () => {
