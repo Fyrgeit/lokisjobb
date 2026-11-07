@@ -102,7 +102,7 @@ export async function ingestFromSource(
             sourceUrl: job.sourceUrl.trim(),
         };
         console.log(
-            `[Ingestion] Processing job: "${normalizedJob.title}" (url: ${normalizedJob.url}, sourceUrl: ${normalizedJob.sourceUrl}) from provider ${provider.name}`,
+            `[Hämtning] Bearbetar jobb: "${normalizedJob.title}" (url: ${normalizedJob.url}, källans url: ${normalizedJob.sourceUrl}) från ${provider.name}`,
         );
         const result = repository.upsert(normalizedJob, provider.name);
         summary[result === 'inserted' ? 'added' : 'updated'] += 1;

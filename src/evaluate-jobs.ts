@@ -7,7 +7,7 @@ import { evaluateJobWithGemini } from './evaluator/gemini-evaluator.js';
 async function main() {
     const config = getConfig();
     if (!config.geminiApiKey) {
-        console.error('Error: GEMINI_API_KEY environment variable is required for AI evaluation.');
+        console.error('Fel: Miljövariabeln GEMINI_API_KEY måste anges för AI-klassificering.');
         process.exit(1);
     }
 
@@ -18,10 +18,10 @@ async function main() {
     const jobs = repository.list();
     const unevaluatedJobs = jobs.filter((job) => job.aiCategory === null);
 
-    console.log(`Found ${unevaluatedJobs.length} unevaluated jobs out of ${jobs.length} total.`);
+    console.log(`Hittade ${unevaluatedJobs.length} okategoriserade jobb av ${jobs.length} totalt.`);
 
     for (const job of unevaluatedJobs) {
-        console.log(`Evaluating job #${job.id}: "${job.title}" at ${job.company ?? 'Unknown'}...`);
+        console.log(`Klassificerar jobb #${job.id}: "${job.title}" hos ${job.company ?? 'okänt företag'}...`);
         try {
             const { category } = await evaluateJobWithGemini(
                 job,
@@ -29,20 +29,20 @@ async function main() {
                 config.geminiModel,
             );
             repository.updateAiCategory(job.id, category);
-            console.log(` -> Category: ${category}`);
+            console.log(` -> Kategori: ${category}`);
         } catch (error: unknown) {
             console.error(
-                `Failed to evaluate job #${job.id}:`,
+                `Det gick inte att klassificera jobb #${job.id}:`,
                 error instanceof Error ? error.message : error,
             );
         }
     }
 
     database.close();
-    console.log('Evaluation complete.');
+    console.log('Klassificeringen är klar.');
 }
 
 main().catch((error) => {
-    console.error('Job evaluation failed:', error);
+    console.error('AI-klassificeringen misslyckades:', error);
     process.exit(1);
 });

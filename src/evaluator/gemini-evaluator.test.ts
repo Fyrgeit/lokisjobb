@@ -77,7 +77,7 @@ describe('evaluateJobWithGemini', () => {
 
         await assert.rejects(
             evaluateJobWithGemini(mockJob, 'fake-api-key'),
-            /Invalid category from Gemini API/,
+            /Gemini API returnerade en ogiltig kategori/,
         );
     });
 
@@ -109,7 +109,7 @@ describe('evaluateJobWithGemini', () => {
 
         await assert.rejects(
             evaluateJobWithGemini(mockJob, 'fake-api-key'),
-            /Invalid category from Gemini API/,
+            /Gemini API returnerade en ogiltig kategori/,
         );
     });
 });

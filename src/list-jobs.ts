@@ -8,7 +8,7 @@ const descriptionLimit = 80;
 // Keep the database value complete, but make terminal output easy to scan.
 function formatDescription(description: string | null): string {
     if (!description) {
-        return 'No description';
+        return 'Ingen beskrivning';
     }
 
     if (description.length <= descriptionLimit) {
@@ -21,17 +21,25 @@ function formatDescription(description: string | null): string {
 function formatJob(job: Job): string {
     return [
         `#${job.id} ${job.title}`,
-        `Company: ${job.company ?? 'Not specified'}`,
-        `Location: ${job.location ?? 'Not specified'}`,
-        `Application deadline: ${job.applicationDeadline ?? 'Not specified'}`,
-        `Availability: ${job.availability}`,
-        `AI category: ${job.aiCategory ?? 'Not evaluated'}`,
-        `Discovered: ${job.discoveredAt}`,
-        `Last seen: ${job.lastSeenAt}`,
+        `Företag: ${job.company ?? 'Ej angivet'}`,
+        `Ort: ${job.location ?? 'Ej angiven'}`,
+        `Sista ansökningsdag: ${job.applicationDeadline ?? 'Ej angiven'}`,
+        `Tillgänglighet: ${formatAvailability(job.availability)}`,
+        `AI-kategori: ${job.aiCategory ?? 'Ej klassificerad'}`,
+        `Upptäckt: ${job.discoveredAt}`,
+        `Senast sedd: ${job.lastSeenAt}`,
         `URL: ${job.url}`,
-        `Sources (${job.sources.length}): ${job.sources.map((source) => `${source.name} [${source.availability}] (${source.url})`).join(', ') || 'None'}`,
-        `Description: ${formatDescription(job.description)}`,
+        `Källor (${job.sources.length}): ${job.sources.map((source) => `${source.name} [${formatAvailability(source.availability)}] (${source.url})`).join(', ') || 'Inga'}`,
+        `Beskrivning: ${formatDescription(job.description)}`,
     ].join('\n');
+}
+
+function formatAvailability(availability: Job['availability']): string {
+    return {
+        active: 'Aktiv',
+        closed: 'Stängd',
+        unknown: 'Okänd',
+    }[availability];
 }
 
 export function getJobs() {
@@ -44,7 +52,7 @@ export function getJobs() {
         const jobs = new JobsRepository(database).list();
 
         if (jobs.length === 0) {
-            return { error: 'No jobs found. Run npm run dev to ingest jobs.' };
+            return { error: 'Inga jobb hittades. Kör npm run dev för att hämta jobbannonser.' };
         }
 
         return { jobs: jobs };
@@ -62,7 +70,7 @@ function main(): void {
 
     if (jobs.jobs) {
         console.log(
-            `Jobs (${jobs.jobs.length})\n` +
+            `Jobb (${jobs.jobs.length})\n` +
                 jobs.jobs.map(formatJob).join('\n\n---\n\n'),
         );
     }

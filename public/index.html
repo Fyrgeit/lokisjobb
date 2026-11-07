@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="sv">
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Lokisjobb - Job Dashboard</title>
+        <title>Lokisjobb – Jobböversikt</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <script src="/index.js" type="module" defer></script>
     </head>
@@ -14,10 +14,10 @@
             >
                 <div>
                     <h1 class="text-2xl font-bold tracking-tight">
-                        Lokisjobb Dashboard
+                        Lokisjobb – jobböversikt
                     </h1>
                     <p class="text-slate-400 text-sm">
-                        Aggregated Job Intelligence & Tracking
+                        Samlade jobbannonser och uppföljning
                     </p>
                 </div>
                 <div class="flex items-center gap-3">
@@ -28,13 +28,13 @@
                             href="/"
                             class="px-3 py-1.5 rounded bg-indigo-600 text-white font-medium shadow transition"
                         >
-                            Job Dashboard
+                            Jobböversikt
                         </a>
                         <a
                             href="/control.html"
                             class="px-3 py-1.5 rounded text-slate-300 hover:text-white hover:bg-slate-700 transition"
                         >
-                            Control Panel
+                            Kontrollpanel
                         </a>
                     </nav>
                     <button
@@ -54,7 +54,7 @@
                                 d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                             />
                         </svg>
-                        Refresh Jobs
+                        Uppdatera jobb
                     </button>
                 </div>
             </div>
@@ -72,7 +72,7 @@
                     <p
                         class="text-xs font-semibold text-slate-500 uppercase tracking-wider"
                     >
-                        Total Jobs
+                        Jobb totalt
                     </p>
                     <p
                         id="statTotal"
@@ -87,7 +87,7 @@
                     <p
                         class="text-xs font-semibold text-slate-500 uppercase tracking-wider"
                     >
-                        Active Jobs
+                        Aktiva jobb
                     </p>
                     <p
                         id="statActive"
@@ -102,7 +102,7 @@
                     <p
                         class="text-xs font-semibold text-slate-500 uppercase tracking-wider"
                     >
-                        AI Categorized
+                        AI-kategoriserade
                     </p>
                     <p
                         id="statAiCategory"
@@ -122,7 +122,7 @@
                         <input
                             type="text"
                             id="searchInput"
-                            placeholder="Search title, company, location..."
+                            placeholder="Sök på titel, företag eller ort..."
                             class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                         />
                         <svg
@@ -149,7 +149,7 @@
                             id="categoryDropdownButton"
                             class="inline-flex justify-between items-center w-48 px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         >
-                            <span id="categoryDropdownLabel">All AI Categories</span>
+                            <span id="categoryDropdownLabel">Alla AI-kategorier</span>
                             <svg
                                 class="w-4 h-4 ml-2 -mr-1"
                                 fill="none"
@@ -199,17 +199,17 @@
                         id="availabilityFilter"
                         class="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     >
-                        <option value="">All Availability</option>
-                        <option value="active">Active</option>
-                        <option value="closed">Closed</option>
-                        <option value="unknown">Unknown</option>
+                        <option value="">Alla tillgänglighetslägen</option>
+                        <option value="active">Aktiv</option>
+                        <option value="closed">Stängd</option>
+                        <option value="unknown">Okänd</option>
                     </select>
 
                     <select
                         id="sourceFilter"
                         class="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     >
-                        <option value="">All Providers</option>
+                        <option value="">Alla källor</option>
                     </select>
                 </div>
 
@@ -219,7 +219,7 @@
                     >
                         <button
                             id="cardViewBtn"
-                            title="Card View"
+                            title="Kortvy"
                             class="p-1.5 rounded text-slate-600 hover:text-slate-900 bg-white shadow-sm transition"
                         >
                             <svg
@@ -238,7 +238,7 @@
                         </button>
                         <button
                             id="listViewBtn"
-                            title="List View"
+                            title="Listvy"
                             class="p-1.5 rounded text-slate-400 hover:text-slate-900 transition"
                         >
                             <svg
@@ -261,28 +261,28 @@
                         <label
                             for="sortSelect"
                             class="text-sm font-medium text-slate-600 whitespace-nowrap"
-                            >Sort by:</label
+                            >Sortera efter:</label
                         >
                         <select
                             id="sortSelect"
                             class="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         >
                             <option value="discovered-desc">
-                                Discovered (Newest)
+                                Upptäckt (nyast först)
                             </option>
                             <option value="discovered-asc">
-                                Discovered (Oldest)
+                                Upptäckt (äldst först)
                             </option>
                             <option value="category-asc">
-                                Category (Priority)
+                                Kategori (prioritet)
                             </option>
-                            <option value="title-asc">Title (A-Z)</option>
-                            <option value="company-asc">Company (A-Z)</option>
+                            <option value="title-asc">Titel (A–Ö)</option>
+                            <option value="company-asc">Företag (A–Ö)</option>
                             <option value="deadline-asc">
-                                Deadline (Soonest)
+                                Sista ansökningsdag (snarast)
                             </option>
                             <option value="deadline-desc">
-                                Deadline (Latest)
+                                Sista ansökningsdag (senast)
                             </option>
                         </select>
                     </div>
@@ -295,7 +295,7 @@
                     id="jobCountLabel"
                     class="text-sm font-medium text-slate-500 mb-4"
                 >
-                    Showing 0 jobs
+                    Visar 0 jobb
                 </div>
                 <div
                     id="output"

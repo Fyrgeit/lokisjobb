@@ -102,7 +102,7 @@ export class JobblandProvider implements JobProvider {
 
         if (!response.ok) {
             throw new Error(
-                `Jobbland request failed with HTTP ${response.status}`,
+                `Begäran till Jobbland misslyckades med HTTP ${response.status}`,
             );
         }
 

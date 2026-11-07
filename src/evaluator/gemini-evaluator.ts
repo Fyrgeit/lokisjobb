@@ -63,7 +63,7 @@ Svara med endast ett JSON-objekt som innehåller kategorin. Lägg inte till någ
     });
 
     if (!response.ok) {
-        throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+        throw new Error(`Gemini API-fel: ${response.status} ${response.statusText}`);
     }
 
     const data = (await response.json()) as {
@@ -76,7 +76,7 @@ Svara med endast ett JSON-objekt som innehåller kategorin. Lägg inte till någ
 
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) {
-        throw new Error('Empty response from Gemini API');
+        throw new Error('Gemini API returnerade ett tomt svar');
     }
 
     const parsed: unknown = JSON.parse(text);
@@ -87,7 +87,7 @@ Svara med endast ett JSON-objekt som innehåller kategorin. Lägg inte till någ
         !('category' in parsed) ||
         !isAiCategory(parsed.category)
     ) {
-        throw new Error('Invalid category from Gemini API');
+        throw new Error('Gemini API returnerade en ogiltig kategori');
     }
 
     return { category: parsed.category };

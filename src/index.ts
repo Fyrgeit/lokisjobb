@@ -31,11 +31,11 @@ async function main(): Promise<void> {
         const totals = { found: 0, added: 0, updated: 0, skipped: 0 };
 
         for (const query of config.searchQueries) {
-            console.log(`\n--- Searching for query: "${query}" ---`);
+            console.log(`\n--- Söker efter: "${query}" ---`);
             for (const provider of providers) {
                 try {
                     console.log(
-                        `Starting job search with ${provider.name} provider for "${query}"...`,
+                        `Söker efter "${query}" hos ${provider.name}...`,
                     );
                     const summary = await ingestFromSource(
                         provider,
@@ -46,45 +46,45 @@ async function main(): Promise<void> {
                     totals.added += summary.added;
                     totals.updated += summary.updated;
                     totals.skipped += summary.skipped;
-                    console.log(`Found ${summary.found} jobs`);
-                    console.log(`Added ${summary.added} new jobs`);
-                    console.log(`Updated ${summary.updated} existing jobs`);
-                    console.log(`Skipped ${summary.skipped} invalid jobs`);
+                    console.log(`Hittade ${summary.found} jobb`);
+                    console.log(`Lade till ${summary.added} nya jobb`);
+                    console.log(`Uppdaterade ${summary.updated} befintliga jobb`);
+                    console.log(`Hoppade över ${summary.skipped} ogiltiga jobb`);
                 } catch (error: unknown) {
                     // One blocked or unavailable provider should not prevent the
                     // other providers from contributing jobs.
                     console.error(
-                        `${provider.name} failed for query "${query}":`,
+                        `${provider.name} misslyckades för sökningen "${query}":`,
                         error instanceof Error ? error.message : error,
                     );
                 }
             }
         }
 
-        console.log(`\n--- Overall Totals ---`);
-        console.log(`Total found: ${totals.found}`);
-        console.log(`Total added: ${totals.added}`);
-        console.log(`Total updated: ${totals.updated}`);
-        console.log(`Total skipped: ${totals.skipped}`);
-        console.log(`Database now contains ${repository.list().length} jobs`);
+        console.log(`\n--- Totalt ---`);
+        console.log(`Hittade totalt: ${totals.found}`);
+        console.log(`Tillagda totalt: ${totals.added}`);
+        console.log(`Uppdaterade totalt: ${totals.updated}`);
+        console.log(`Överhoppade totalt: ${totals.skipped}`);
+        console.log(`Databasen innehåller nu ${repository.list().length} jobb`);
 
         // Run AI Evaluation on unevaluated jobs
-        console.log(`\n--- AI Evaluation ---`);
+        console.log(`\n--- AI-klassificering ---`);
         if (!config.geminiApiKey) {
             console.log(
-                'Skipping AI evaluation: GEMINI_API_KEY is not configured.',
+                'Hoppar över AI-klassificeringen: GEMINI_API_KEY är inte konfigurerad.',
             );
         } else {
             const jobs = repository.list();
             const unevaluatedJobs = jobs.filter((job) => job.aiCategory === null);
             console.log(
-                `Found ${unevaluatedJobs.length} unevaluated jobs out of ${jobs.length} total.`,
+                `Hittade ${unevaluatedJobs.length} okategoriserade jobb av ${jobs.length} totalt.`,
             );
 
             let evaluatedCount = 0;
             for (const job of unevaluatedJobs) {
                 console.log(
-                    `Evaluating job #${job.id}: "${job.title}" at ${job.company ?? 'Unknown'}...`,
+                    `Klassificerar jobb #${job.id}: "${job.title}" hos ${job.company ?? 'okänt företag'}...`,
                 );
                 try {
                     const { evaluateJobWithGemini } =
@@ -95,17 +95,17 @@ async function main(): Promise<void> {
                         config.geminiModel,
                     );
                     repository.updateAiCategory(job.id, category);
-                    console.log(` -> Category: ${category}`);
+                    console.log(` -> Kategori: ${category}`);
                     evaluatedCount++;
                 } catch (error: unknown) {
                     console.error(
-                        `Failed to evaluate job #${job.id}:`,
+                        `Det gick inte att klassificera jobb #${job.id}:`,
                         error instanceof Error ? error.message : error,
                     );
                 }
             }
             console.log(
-                `AI evaluation complete. Evaluated ${evaluatedCount} jobs.`,
+                `AI-klassificeringen är klar. Klassificerade ${evaluatedCount} jobb.`,
             );
         }
     } finally {
@@ -114,6 +114,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-    console.error('Job search failed:', error);
+    console.error('Jobbsökningen misslyckades:', error);
     process.exitCode = 1;
 });

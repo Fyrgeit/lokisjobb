@@ -69,7 +69,7 @@ export class ArbetsformedlingenProvider implements JobProvider {
 
         if (!response.ok) {
             throw new Error(
-                `Arbetsförmedlingen request failed with HTTP ${response.status}`,
+                `Begäran till Arbetsförmedlingen misslyckades med HTTP ${response.status}`,
             );
         }
 

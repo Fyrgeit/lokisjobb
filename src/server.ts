@@ -60,11 +60,11 @@ async function runScraperIngestion(
     const totals = { found: 0, added: 0, updated: 0, skipped: 0 };
 
     for (const query of searchQueries) {
-        log(`--- Searching for query: "${query}" ---`);
+        log(`--- Söker efter: "${query}" ---`);
         for (const provider of providers) {
             try {
                 log(
-                    `Starting job search with ${provider.name} provider for "${query}"...`,
+                    `Söker efter "${query}" hos ${provider.name}...`,
                 );
                 const summary = await ingestFromSource(
                     provider,
@@ -76,11 +76,11 @@ async function runScraperIngestion(
                 totals.updated += summary.updated;
                 totals.skipped += summary.skipped;
                 log(
-                    `[${provider.name}] Found ${summary.found}, Added ${summary.added}, Updated ${summary.updated}`,
+                    `[${provider.name}] Hittade ${summary.found}, lade till ${summary.added}, uppdaterade ${summary.updated}`,
                 );
             } catch (error: unknown) {
                 log(
-                    `[${provider.name}] Failed for query "${query}": ${error instanceof Error ? error.message : error}`,
+                    `[${provider.name}] Misslyckades för sökningen "${query}": ${error instanceof Error ? error.message : error}`,
                 );
             }
         }
@@ -135,7 +135,7 @@ app.get('/api/database/tables/:tableName', (req, res) => {
     const { tableName } = req.params;
     if (tableName !== 'jobs' && tableName !== 'job_sources') {
         res.status(400).json({
-            error: 'Invalid table name. Allowed: jobs, job_sources',
+            error: 'Ogiltigt tabellnamn. Tillåtna tabeller: jobs, job_sources',
         });
         return;
     }
@@ -169,27 +169,27 @@ app.post('/api/ops/run-scraper', async (_req, res) => {
             log,
         );
 
-        log(`--- Overall Ingestion Totals ---`);
+        log(`--- Hämtning – totalt ---`);
         log(
-            `Total found: ${totals.found}, Added: ${totals.added}, Updated: ${totals.updated}`,
+            `Hittade totalt: ${totals.found}, tillagda: ${totals.added}, uppdaterade: ${totals.updated}`,
         );
 
         // Run AI Evaluation
-        log(`\n--- AI Evaluation ---`);
+        log(`\n--- AI-klassificering ---`);
         let evaluatedCount = 0;
         let failedCount = 0;
         const jobs = repository.list();
         const unevaluatedJobs = jobs.filter((job) => job.aiCategory === null);
         log(
-            `Starting evaluation: ${unevaluatedJobs.length} unknown jobs out of ${jobs.length} total.`,
+            `Börjar klassificera ${unevaluatedJobs.length} okategoriserade jobb av ${jobs.length} totalt.`,
         );
 
         if (!config.geminiApiKey) {
-            log('Skipping AI evaluation: GEMINI_API_KEY is not configured.');
+            log('Hoppar över AI-klassificeringen: GEMINI_API_KEY är inte konfigurerad.');
         } else {
             for (const job of unevaluatedJobs) {
                 log(
-                    `Evaluating job #${job.id}: "${job.title}" at ${job.company ?? 'Unknown'}...`,
+                    `Klassificerar jobb #${job.id}: "${job.title}" hos ${job.company ?? 'okänt företag'}...`,
                 );
                 try {
                     const { category } = await evaluateJobWithGemini(
@@ -203,7 +203,7 @@ app.post('/api/ops/run-scraper', async (_req, res) => {
                 } catch (error: unknown) {
                     failedCount++;
                     log(
-                        `Failed to evaluate job #${job.id}: ${error instanceof Error ? error.message : error}`,
+                        `Det gick inte att klassificera jobb #${job.id}: ${error instanceof Error ? error.message : error}`,
                     );
                 }
             }
@@ -212,7 +212,7 @@ app.post('/api/ops/run-scraper', async (_req, res) => {
             .list()
             .filter((job) => job.aiCategory === null).length;
         log(
-            `AI evaluation complete. Graded: ${evaluatedCount}, failed: ${failedCount}, still unknown: ${remainingUnknownCount}.`,
+            `AI-klassificeringen är klar. Klassificerade: ${evaluatedCount}, misslyckade: ${failedCount}, återstående okategoriserade: ${remainingUnknownCount}.`,
         );
 
         database.close();
@@ -239,9 +239,9 @@ app.post('/api/ops/run-scraper-only', async (_req, res) => {
         );
         database.close();
 
-        log('--- Overall Ingestion Totals ---');
+        log('--- Hämtning – totalt ---');
         log(
-            `Total found: ${totals.found}, Added: ${totals.added}, Updated: ${totals.updated}`,
+            `Hittade totalt: ${totals.found}, tillagda: ${totals.added}, uppdaterade: ${totals.updated}`,
         );
 
         stream.complete({ success: true, totals });
@@ -259,7 +259,7 @@ app.post('/api/ops/run-evaluator', async (_req, res) => {
         if (!config.geminiApiKey) {
             res.status(400).json({
                 success: false,
-                error: 'GEMINI_API_KEY environment variable is required.',
+                error: 'Miljövariabeln GEMINI_API_KEY måste anges.',
             });
             return;
         }
@@ -272,14 +272,14 @@ app.post('/api/ops/run-evaluator', async (_req, res) => {
         const unevaluatedJobs = jobs.filter((job) => job.aiCategory === null);
 
         log(
-            `Starting evaluation: ${unevaluatedJobs.length} unknown jobs out of ${jobs.length} total.`,
+            `Börjar klassificera ${unevaluatedJobs.length} okategoriserade jobb av ${jobs.length} totalt.`,
         );
 
         let evaluatedCount = 0;
         let failedCount = 0;
         for (const job of unevaluatedJobs) {
             log(
-                `Evaluating job #${job.id}: "${job.title}" at ${job.company ?? 'Unknown'}...`,
+                `Klassificerar jobb #${job.id}: "${job.title}" hos ${job.company ?? 'okänt företag'}...`,
             );
             try {
                 const { category } = await evaluateJobWithGemini(
@@ -293,7 +293,7 @@ app.post('/api/ops/run-evaluator', async (_req, res) => {
             } catch (error: unknown) {
                 failedCount++;
                 log(
-                    `Failed to evaluate job #${job.id}: ${error instanceof Error ? error.message : error}`,
+                    `Det gick inte att klassificera jobb #${job.id}: ${error instanceof Error ? error.message : error}`,
                 );
             }
         }
@@ -303,7 +303,7 @@ app.post('/api/ops/run-evaluator', async (_req, res) => {
             .filter((job) => job.aiCategory === null).length;
         database.close();
         log(
-            `Evaluation complete. Graded: ${evaluatedCount}, failed: ${failedCount}, still unknown: ${remainingUnknownCount}.`,
+            `Klassificeringen är klar. Klassificerade: ${evaluatedCount}, misslyckade: ${failedCount}, återstående okategoriserade: ${remainingUnknownCount}.`,
         );
         stream.complete({ success: true, evaluatedCount });
     } catch (error: unknown) {
@@ -338,5 +338,5 @@ app.post('/api/ops/run-analyzer', (_req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`Lokisjobb running at http://localhost:${PORT}`);
+    console.log(`Lokisjobb körs på http://localhost:${PORT}`);
 });

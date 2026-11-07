@@ -13,26 +13,26 @@ async function main() {
     const jobs = repo.list();
     const report = analyzeProviderRedundancy(jobs);
 
-    console.log(`=== Job Provider Redundancy Analysis ===`);
-    console.log(`Total Unique Jobs: ${report.totalUniqueJobs}\n`);
+    console.log(`=== Analys av överlapp mellan jobbportaler ===`);
+    console.log(`Unika jobb totalt: ${report.totalUniqueJobs}\n`);
 
-    console.log(`--- Provider Statistics ---`);
+    console.log(`--- Källstatistik ---`);
     for (const source of report.sources) {
-        const tag = source.noExclusiveJobs ? ' [no exclusive jobs]' : '';
+        const tag = source.noExclusiveJobs ? ' [inga unika jobb]' : '';
         console.log(
-            `• ${source.name}: ${source.totalJobs} jobs (${source.coveragePercentage}%), ${source.exclusiveJobs} exclusive jobs${tag}`,
+            `• ${source.name}: ${source.totalJobs} jobb (${source.coveragePercentage} %), ${source.exclusiveJobs} unika jobb${tag}`,
         );
     }
 
-    console.log(`\n--- Minimal Provider Combinations (100% Coverage) ---`);
+    console.log(`\n--- Minsta källkombinationer (100 % täckning) ---`);
     if (report.minimalCovers.length === 0) {
-        console.log('No single combination covers 100% of jobs.');
+        console.log('Ingen enskild kombination täcker 100 % av jobben.');
     } else {
         // Show top 3 minimal covers
         const topCovers = report.minimalCovers.slice(0, 3);
         for (const cover of topCovers) {
             console.log(
-                `[ ${cover.sources.join(', ')} ] -> Covers ${cover.coveragePercentage}% of jobs`,
+                `[ ${cover.sources.join(', ')} ] -> Täcker ${cover.coveragePercentage} % av jobben`,
             );
         }
     }
@@ -41,6 +41,6 @@ async function main() {
 }
 
 main().catch((error) => {
-    console.error('Error running provider redundancy analysis:', error);
+    console.error('Det gick inte att analysera källornas överlapp:', error);
     process.exit(1);
 });

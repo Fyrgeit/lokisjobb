@@ -134,7 +134,7 @@ export class JobbsafariProvider implements JobProvider {
 
         if (!response.ok) {
             throw new Error(
-                `Jobbsafari request failed with HTTP ${response.status}`,
+                `Begäran till Jobbsafari misslyckades med HTTP ${response.status}`,
             );
         }
 
@@ -169,7 +169,7 @@ export class JobbsafariProvider implements JobProvider {
                 const message =
                     error instanceof Error ? error.message : String(error);
                 console.warn(
-                    `Could not fetch Jobbsafari details from ${job.url}: ${message}`,
+                    `Det gick inte att hämta jobbdetaljer från Jobbsafari (${job.url}): ${message}`,
                 );
             }
         }

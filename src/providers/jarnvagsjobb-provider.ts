@@ -84,7 +84,7 @@ export class JarnvagsjobbProvider implements JobProvider {
 
         if (!response.ok) {
             throw new Error(
-                `Järnvägsjobb request failed with HTTP ${response.status}`,
+                `Begäran till Järnvägsjobb misslyckades med HTTP ${response.status}`,
             );
         }
 
@@ -131,7 +131,7 @@ export class JarnvagsjobbProvider implements JobProvider {
                 const message =
                     error instanceof Error ? error.message : String(error);
                 console.warn(
-                    `Could not fetch job details from ${job.url}: ${message}`,
+                    `Det gick inte att hämta jobbdetaljer från ${job.url}: ${message}`,
                 );
             }
         }
