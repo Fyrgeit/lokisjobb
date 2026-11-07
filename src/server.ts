@@ -7,7 +7,7 @@ import { JobsRepository } from './database/jobs.js';
 import type Database from 'better-sqlite3';
 import { evaluateUnevaluatedJobs } from './evaluator/job-evaluation.js';
 import { createProviders } from './providers/create-providers.js';
-import { ingestFromSource } from './scraper/ingestion.js';
+import { runIngestion } from './scraper/run-ingestion.js';
 import { analyzeProviderRedundancy } from './analysis/provider-redundancy.js';
 
 const app = express();
@@ -60,37 +60,19 @@ async function runScraperIngestion(
     repository: JobsRepository,
     log: (message: string) => void,
 ) {
-    const providers = createProviders();
-    const totals = { found: 0, added: 0, updated: 0, skipped: 0 };
-
-    for (const query of searchQueries) {
-        log(`--- Söker efter: "${query}" ---`);
-        for (const provider of providers) {
-            try {
-                log(
-                    `Söker efter "${query}" hos ${provider.name}...`,
-                );
-                const summary = await ingestFromSource(
-                    provider,
-                    query,
-                    repository,
-                );
-                totals.found += summary.found;
-                totals.added += summary.added;
-                totals.updated += summary.updated;
-                totals.skipped += summary.skipped;
-                log(
-                    `[${provider.name}] Hittade ${summary.found}, lade till ${summary.added}, uppdaterade ${summary.updated}`,
-                );
-            } catch (error: unknown) {
-                log(
-                    `[${provider.name}] Misslyckades för sökningen "${query}": ${error instanceof Error ? error.message : error}`,
-                );
-            }
-        }
-    }
-
-    return totals;
+    return runIngestion(searchQueries, createProviders(), repository, {
+        onQuery: (query) => log(`--- Söker efter: "${query}" ---`),
+        onProviderStart: (provider, query) =>
+            log(`Söker efter "${query}" hos ${provider.name}...`),
+        onProviderComplete: (provider, _query, summary) =>
+            log(
+                `[${provider.name}] Hittade ${summary.found}, lade till ${summary.added}, uppdaterade ${summary.updated}`,
+            ),
+        onProviderError: (provider, query, error) =>
+            log(
+                `[${provider.name}] Misslyckades för sökningen "${query}": ${error instanceof Error ? error.message : error}`,
+            ),
+    });
 }
 
 // Existing API endpoint for dashboard jobs

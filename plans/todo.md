@@ -7,3 +7,9 @@ Flags:
 - Completed: migration URL fallbacks now warn for invalid legacy URLs and allow unexpected errors to propagate.
 
 - Completed: server database handles now close in `finally` paths, including failed route operations and failed database initialization.
+
+- Completed: shared the query/provider ingestion loop between CLI and server while keeping their logging formats at the entry points.
+
+- Completed: standalone analyzer and evaluator scripts now close databases in `finally` blocks.
+
+- Completed: standalone evaluator now uses the shared job-evaluation workflow.

@@ -9,6 +9,8 @@ export interface IngestionSummary {
     skipped: number;
 }
 
+export type JobIngestionRepository = Pick<JobsRepository, 'upsert'>;
+
 // This employer currently represents an AI matching service rather than a
 // direct vacancy, so exclude it consistently across every provider.
 const ignoredCompanies = new Set(['ren labs stockholm ab']);
@@ -76,7 +78,7 @@ export function canonicalizeApplicationUrl(url: string): string {
 export async function ingestFromSource(
     provider: JobProvider,
     query: string,
-    repository: JobsRepository,
+    repository: JobIngestionRepository,
 ): Promise<IngestionSummary> {
     // This is the only boundary where a provider result becomes persisted data.
     const jobs = await provider.search(query);

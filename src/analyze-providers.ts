@@ -8,36 +8,37 @@ async function main() {
     const config = getConfig();
     const dbPath = path.resolve(config.databasePath);
     const db = createDatabase(dbPath);
-    const repo = new JobsRepository(db);
 
-    const jobs = repo.list();
-    const report = analyzeProviderRedundancy(jobs);
+    try {
+        const repo = new JobsRepository(db);
+        const jobs = repo.list();
+        const report = analyzeProviderRedundancy(jobs);
 
-    console.log(`=== Analys av överlapp mellan jobbportaler ===`);
-    console.log(`Unika jobb totalt: ${report.totalUniqueJobs}\n`);
+        console.log(`=== Analys av överlapp mellan jobbportaler ===`);
+        console.log(`Unika jobb totalt: ${report.totalUniqueJobs}\n`);
 
-    console.log(`--- Källstatistik ---`);
-    for (const source of report.sources) {
-        const tag = source.noExclusiveJobs ? ' [inga unika jobb]' : '';
-        console.log(
-            `• ${source.name}: ${source.totalJobs} jobb (${source.coveragePercentage} %), ${source.exclusiveJobs} unika jobb${tag}`,
-        );
-    }
-
-    console.log(`\n--- Minsta källkombinationer (100 % täckning) ---`);
-    if (report.minimalCovers.length === 0) {
-        console.log('Ingen enskild kombination täcker 100 % av jobben.');
-    } else {
-        // Show top 3 minimal covers
-        const topCovers = report.minimalCovers.slice(0, 3);
-        for (const cover of topCovers) {
+        console.log(`--- Källstatistik ---`);
+        for (const source of report.sources) {
+            const tag = source.noExclusiveJobs ? ' [inga unika jobb]' : '';
             console.log(
-                `[ ${cover.sources.join(', ')} ] -> Täcker ${cover.coveragePercentage} % av jobben`,
+                `• ${source.name}: ${source.totalJobs} jobb (${source.coveragePercentage} %), ${source.exclusiveJobs} unika jobb${tag}`,
             );
         }
-    }
 
-    db.close();
+        console.log(`\n--- Minsta källkombinationer (100 % täckning) ---`);
+        if (report.minimalCovers.length === 0) {
+            console.log('Ingen enskild kombination täcker 100 % av jobben.');
+        } else {
+            const topCovers = report.minimalCovers.slice(0, 3);
+            for (const cover of topCovers) {
+                console.log(
+                    `[ ${cover.sources.join(', ')} ] -> Täcker ${cover.coveragePercentage} % av jobben`,
+                );
+            }
+        }
+    } finally {
+        db.close();
+    }
 }
 
 main().catch((error) => {
