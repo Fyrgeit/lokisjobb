@@ -4,6 +4,7 @@ import { getJobs } from './list-jobs.js';
 import { getConfig } from './config/config.js';
 import { createDatabase } from './database/database.js';
 import { JobsRepository } from './database/jobs.js';
+import type Database from 'better-sqlite3';
 import { evaluateUnevaluatedJobs } from './evaluator/job-evaluation.js';
 import { createProviders } from './providers/create-providers.js';
 import { ingestFromSource } from './scraper/ingestion.js';
@@ -11,6 +12,18 @@ import { analyzeProviderRedundancy } from './analysis/provider-redundancy.js';
 
 const app = express();
 const PORT = 3000;
+
+async function withDatabase<T>(
+    databasePath: string,
+    operation: (database: Database.Database) => T | Promise<T>,
+): Promise<T> {
+    const database = createDatabase(databasePath);
+    try {
+        return await operation(database);
+    } finally {
+        database.close();
+    }
+}
 
 app.use(express.json());
 // Serve everything in /public
@@ -86,32 +99,32 @@ app.get('/api/jobs', (_req, res) => {
 });
 
 // Database stats endpoint
-app.get('/api/database/stats', (_req, res) => {
+app.get('/api/database/stats', async (_req, res) => {
     try {
         const config = getConfig();
-        const db = createDatabase(config.databasePath);
+        const stats = await withDatabase(config.databasePath, (db) => {
+            const jobCountRow = db
+                .prepare('SELECT COUNT(*) as count FROM jobs')
+                .get() as { count: number };
+            const sourceCountRow = db
+                .prepare('SELECT COUNT(*) as count FROM job_sources')
+                .get() as { count: number };
 
-        const jobCountRow = db
-            .prepare('SELECT COUNT(*) as count FROM jobs')
-            .get() as { count: number };
-        const sourceCountRow = db
-            .prepare('SELECT COUNT(*) as count FROM job_sources')
-            .get() as { count: number };
+            const sourcesSummary = db
+                .prepare(
+                    'SELECT source_name, COUNT(*) as count FROM job_sources GROUP BY source_name',
+                )
+                .all();
 
-        const sourcesSummary = db
-            .prepare(
-                'SELECT source_name, COUNT(*) as count FROM job_sources GROUP BY source_name',
-            )
-            .all();
-
-        db.close();
-
-        res.json({
-            totalJobs: jobCountRow.count,
-            totalSourceRecords: sourceCountRow.count,
-            sourcesBreakdown: sourcesSummary,
-            databasePath: config.databasePath,
+            return {
+                totalJobs: jobCountRow.count,
+                totalSourceRecords: sourceCountRow.count,
+                sourcesBreakdown: sourcesSummary,
+                databasePath: config.databasePath,
+            };
         });
+
+        res.json(stats);
     } catch (error: unknown) {
         res.status(500).json({
             error: error instanceof Error ? error.message : String(error),
@@ -120,7 +133,7 @@ app.get('/api/database/stats', (_req, res) => {
 });
 
 // Database table inspector endpoint
-app.get('/api/database/tables/:tableName', (req, res) => {
+app.get('/api/database/tables/:tableName', async (req, res) => {
     const { tableName } = req.params;
     if (tableName !== 'jobs' && tableName !== 'job_sources') {
         res.status(400).json({
@@ -131,9 +144,9 @@ app.get('/api/database/tables/:tableName', (req, res) => {
 
     try {
         const config = getConfig();
-        const db = createDatabase(config.databasePath);
-        const rows = db.prepare(`SELECT * FROM ${tableName} LIMIT 100`).all();
-        db.close();
+        const rows = await withDatabase(config.databasePath, (db) =>
+            db.prepare(`SELECT * FROM ${tableName} LIMIT 100`).all(),
+        );
 
         res.json({ table: tableName, rows });
     } catch (error: unknown) {
@@ -150,37 +163,36 @@ app.post('/api/ops/run-scraper', async (_req, res) => {
 
     try {
         const config = getConfig();
-        const database = createDatabase(config.databasePath);
-        const repository = new JobsRepository(database);
-        const totals = await runScraperIngestion(
-            config.searchQueries,
-            repository,
-            log,
-        );
+        const result = await withDatabase(config.databasePath, async (database) => {
+            const repository = new JobsRepository(database);
+            const totals = await runScraperIngestion(
+                config.searchQueries,
+                repository,
+                log,
+            );
 
-        log(`--- Hämtning – totalt ---`);
-        log(
-            `Hittade totalt: ${totals.found}, tillagda: ${totals.added}, uppdaterade: ${totals.updated}`,
-        );
+            log(`--- Hämtning – totalt ---`);
+            log(
+                `Hittade totalt: ${totals.found}, tillagda: ${totals.added}, uppdaterade: ${totals.updated}`,
+            );
 
-        // Run AI Evaluation
-        log(`\n--- AI-klassificering ---`);
-        const evaluation = await evaluateUnevaluatedJobs(
-            repository,
-            config.geminiApiKey,
-            config.geminiModel,
-            { log, error: log },
-        );
-        log(
-            `AI-klassificeringen är klar. Klassificerade: ${evaluation.evaluatedCount}, misslyckade: ${evaluation.failedCount}, återstående okategoriserade: ${evaluation.remainingUnknownCount}.`,
-        );
-
-        database.close();
+            log(`\n--- AI-klassificering ---`);
+            const evaluation = await evaluateUnevaluatedJobs(
+                repository,
+                config.geminiApiKey,
+                config.geminiModel,
+                { log, error: log },
+            );
+            log(
+                `AI-klassificeringen är klar. Klassificerade: ${evaluation.evaluatedCount}, misslyckade: ${evaluation.failedCount}, återstående okategoriserade: ${evaluation.remainingUnknownCount}.`,
+            );
+            return { totals, evaluation };
+        });
 
         stream.complete({
             success: true,
-            totals,
-            evaluatedCount: evaluation.evaluatedCount,
+            totals: result.totals,
+            evaluatedCount: result.evaluation.evaluatedCount,
         });
     } catch (error: unknown) {
         stream.fail(error);
@@ -194,14 +206,13 @@ app.post('/api/ops/run-scraper-only', async (_req, res) => {
 
     try {
         const config = getConfig();
-        const database = createDatabase(config.databasePath);
-        const repository = new JobsRepository(database);
-        const totals = await runScraperIngestion(
-            config.searchQueries,
-            repository,
-            log,
+        const totals = await withDatabase(config.databasePath, (database) =>
+            runScraperIngestion(
+                config.searchQueries,
+                new JobsRepository(database),
+                log,
+            ),
         );
-        database.close();
 
         log('--- Hämtning – totalt ---');
         log(
@@ -230,15 +241,16 @@ app.post('/api/ops/run-evaluator', async (_req, res) => {
 
         stream = createOpsLogStream(res);
         const log = stream.log;
-        const database = createDatabase(config.databasePath);
-        const repository = new JobsRepository(database);
-        const evaluation = await evaluateUnevaluatedJobs(
-            repository,
-            config.geminiApiKey,
-            config.geminiModel,
-            { log, error: log },
+        const evaluation = await withDatabase(
+            config.databasePath,
+            (database) =>
+                evaluateUnevaluatedJobs(
+                    new JobsRepository(database),
+                    config.geminiApiKey,
+                    config.geminiModel,
+                    { log, error: log },
+                ),
         );
-        database.close();
         log(
             `Klassificeringen är klar. Klassificerade: ${evaluation.evaluatedCount}, misslyckade: ${evaluation.failedCount}, återstående okategoriserade: ${evaluation.remainingUnknownCount}.`,
         );
@@ -259,14 +271,12 @@ app.post('/api/ops/run-evaluator', async (_req, res) => {
 });
 
 // Run Redundancy Analyzer Operation
-app.post('/api/ops/run-analyzer', (_req, res) => {
+app.post('/api/ops/run-analyzer', async (_req, res) => {
     try {
         const config = getConfig();
-        const db = createDatabase(config.databasePath);
-        const repo = new JobsRepository(db);
-        const jobs = repo.list();
-        const report = analyzeProviderRedundancy(jobs);
-        db.close();
+        const report = await withDatabase(config.databasePath, (database) =>
+            analyzeProviderRedundancy(new JobsRepository(database).list()),
+        );
 
         res.json({ success: true, report });
     } catch (error: unknown) {

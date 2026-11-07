@@ -118,3 +118,53 @@ it('marks categories from the previous taxonomy unevaluated for reclassification
         fs.rmSync(directory, { recursive: true, force: true });
     }
 });
+
+it('preserves legacy jobs with invalid URLs and warns during migration', () => {
+    const directory = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'lokisjobb-invalid-url-migration-'),
+    );
+    const databasePath = path.join(directory, 'jobs.db');
+    let database: Database.Database | undefined;
+    const originalWarn = console.warn;
+    const warnings: string[] = [];
+
+    try {
+        const legacyDatabase = new Database(databasePath);
+        legacyDatabase.exec(`
+            CREATE TABLE jobs (
+                id INTEGER PRIMARY KEY,
+                title TEXT NOT NULL,
+                company TEXT,
+                location TEXT,
+                url TEXT NOT NULL UNIQUE,
+                source_url TEXT NOT NULL,
+                description TEXT,
+                application_deadline TEXT,
+                discovered_at TEXT NOT NULL,
+                last_seen_at TEXT NOT NULL,
+                ai_category TEXT
+            );
+            INSERT INTO jobs
+                (title, url, source_url, discovered_at, last_seen_at)
+            VALUES
+                ('Legacy job', 'not a URL', 'not a source URL', '2026-01-01', '2026-01-01');
+        `);
+        legacyDatabase.close();
+        console.warn = (message?: unknown) => warnings.push(String(message));
+
+        database = createDatabase(databasePath);
+
+        const job = database
+            .prepare('SELECT url FROM jobs WHERE id = 1')
+            .get() as { url: string };
+        assert.equal(job.url, 'not a URL');
+        assert.deepEqual(warnings, [
+            'Skipping URL canonicalization for job #1: invalid URL',
+            'Using legacy source name for job #1: invalid source URL',
+        ]);
+    } finally {
+        console.warn = originalWarn;
+        database?.close();
+        fs.rmSync(directory, { recursive: true, force: true });
+    }
+});

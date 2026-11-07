@@ -79,34 +79,44 @@ function migrateJobsTable(database: Database.Database): void {
         url: string;
     }>;
     for (const job of jobs) {
+        let canonicalUrl: string;
         try {
-            const canonicalUrl = canonicalizeApplicationUrl(job.url);
-            if (canonicalUrl !== job.url) {
-                const existing = database
-                    .prepare('SELECT id FROM jobs WHERE url = ? AND id <> ?')
-                    .get(canonicalUrl, job.id) as { id: number } | undefined;
-                if (existing) {
-                    database.transaction(() => {
-                        database
-                            .prepare(
-                                `
+            canonicalUrl = canonicalizeApplicationUrl(job.url);
+        } catch (error: unknown) {
+            if (!(error instanceof TypeError)) {
+                throw error;
+            }
+            console.warn(
+                `Skipping URL canonicalization for job #${job.id}: invalid URL`,
+            );
+            continue;
+        }
+
+        if (canonicalUrl !== job.url) {
+            const existing = database
+                .prepare('SELECT id FROM jobs WHERE url = ? AND id <> ?')
+                .get(canonicalUrl, job.id) as { id: number } | undefined;
+            if (existing) {
+                database.transaction(() => {
+                    database
+                        .prepare(
+                            `
                             INSERT OR IGNORE INTO job_sources
                             SELECT ?, source_name, source_url, first_seen_at, last_seen_at, availability, checked_at
                             FROM job_sources WHERE job_id = ?
                         `,
-                            )
-                            .run(existing.id, job.id);
-                        database
-                            .prepare('DELETE FROM jobs WHERE id = ?')
-                            .run(job.id);
-                    })();
-                } else {
+                        )
+                        .run(existing.id, job.id);
                     database
-                        .prepare('UPDATE jobs SET url = ? WHERE id = ?')
-                        .run(canonicalUrl, job.id);
-                }
+                        .prepare('DELETE FROM jobs WHERE id = ?')
+                        .run(job.id);
+                })();
+            } else {
+                database
+                    .prepare('UPDATE jobs SET url = ? WHERE id = ?')
+                    .run(canonicalUrl, job.id);
             }
-        } catch {}
+        }
     }
 
     // Merge any duplicate jobs that have the same URL or source_url
@@ -185,10 +195,16 @@ function migrateJobsTable(database: Database.Database): void {
     }
 }
 
-function inferSourceName(sourceUrl: string): string {
+function inferSourceName(sourceUrl: string, jobId: number): string {
     try {
         return new URL(sourceUrl).hostname.replace(/^www\./, '');
-    } catch {
+    } catch (error: unknown) {
+        if (!(error instanceof TypeError)) {
+            throw error;
+        }
+        console.warn(
+            `Using legacy source name for job #${jobId}: invalid source URL`,
+        );
         return 'legacy';
     }
 }
@@ -230,7 +246,7 @@ function migrateJobSources(database: Database.Database): void {
     for (const row of legacyRows) {
         insertSource.run(
             row.id,
-            inferSourceName(row.source_url),
+            inferSourceName(row.source_url, row.id),
             row.source_url,
             row.discovered_at,
             row.last_seen_at,
@@ -248,11 +264,16 @@ export function createDatabase(databasePath: string): Database.Database {
     }
 
     const database = new Database(databasePath);
-    // This is harmless today, but keeps the database ready for relationships
-    // if related tables are introduced later.
-    database.pragma('foreign_keys = ON');
-    database.exec(schema);
-    migrateJobsTable(database);
-    migrateJobSources(database);
-    return database;
+    try {
+        // This is harmless today, but keeps the database ready for relationships
+        // if related tables are introduced later.
+        database.pragma('foreign_keys = ON');
+        database.exec(schema);
+        migrateJobsTable(database);
+        migrateJobSources(database);
+        return database;
+    } catch (error: unknown) {
+        database.close();
+        throw error;
+    }
 }

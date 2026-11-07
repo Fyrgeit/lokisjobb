@@ -4,4 +4,6 @@ Flags:
 
 - Completed: centralized the provider registry and consolidated CLI/server AI evaluation.
 
-Revisit: review the database migration's silent catch and server database cleanup paths.
+- Completed: migration URL fallbacks now warn for invalid legacy URLs and allow unexpected errors to propagate.
+
+- Completed: server database handles now close in `finally` paths, including failed route operations and failed database initialization.
