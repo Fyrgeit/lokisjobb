@@ -3,6 +3,8 @@ const statTotalSources = document.getElementById('statTotalSources');
 const statDbPath = document.getElementById('statDbPath');
 
 const runScraperBtn = document.getElementById('runScraperBtn');
+const runScraperOnlyBtn = document.getElementById('runScraperOnlyBtn');
+const runEvaluatorBtn = document.getElementById('runEvaluatorBtn');
 const runAnalyzerBtn = document.getElementById('runAnalyzerBtn');
 const clearLogsBtn = document.getElementById('clearLogsBtn');
 const terminalOutput = document.getElementById('terminalOutput');
@@ -81,6 +83,60 @@ async function runScraper() {
     } finally {
         runScraperBtn.disabled = false;
         runScraperBtn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Run Scraper & AI Evaluator`;
+    }
+}
+
+async function runScraperOnly() {
+    runScraperOnlyBtn.disabled = true;
+    runScraperOnlyBtn.querySelector('span').textContent = 'Running Scraper...';
+    appendLog('Starting job scraper ingestion...');
+
+    try {
+        const res = await fetch('/api/ops/run-scraper-only', { method: 'POST' });
+        const data = await parseResponse(res);
+        if (data.logs) {
+            data.logs.forEach((l) => appendLog(l));
+        }
+        if (data.success) {
+            appendLog(
+                `Scraper completed successfully. Found: ${data.totals.found}, Added: ${data.totals.added}, Updated: ${data.totals.updated}`,
+            );
+            fetchStats();
+        } else {
+            appendLog(`Scraper failed: ${data.error}`, true);
+        }
+    } catch (err) {
+        appendLog(`Scraper request failed: ${err.message}`, true);
+    } finally {
+        runScraperOnlyBtn.disabled = false;
+        runScraperOnlyBtn.querySelector('span').textContent = 'Run Scraper';
+    }
+}
+
+async function runEvaluator() {
+    runEvaluatorBtn.disabled = true;
+    runEvaluatorBtn.querySelector('span').textContent = 'Running AI Evaluator...';
+    appendLog('Starting AI evaluation of unevaluated jobs...');
+
+    try {
+        const res = await fetch('/api/ops/run-evaluator', { method: 'POST' });
+        const data = await parseResponse(res);
+        if (data.logs) {
+            data.logs.forEach((l) => appendLog(l));
+        }
+        if (data.success) {
+            appendLog(
+                `AI evaluation completed successfully. Evaluated: ${data.evaluatedCount}`,
+            );
+            fetchStats();
+        } else {
+            appendLog(`AI evaluation failed: ${data.error}`, true);
+        }
+    } catch (err) {
+        appendLog(`AI evaluator request failed: ${err.message}`, true);
+    } finally {
+        runEvaluatorBtn.disabled = false;
+        runEvaluatorBtn.querySelector('span').textContent = 'Run AI Evaluator';
     }
 }
 
@@ -172,6 +228,8 @@ async function loadTableInspector() {
 }
 
 runScraperBtn.addEventListener('click', runScraper);
+runScraperOnlyBtn.addEventListener('click', runScraperOnly);
+runEvaluatorBtn.addEventListener('click', runEvaluator);
 runAnalyzerBtn.addEventListener('click', runAnalyzer);
 refreshTableBtn.addEventListener('click', loadTableInspector);
 

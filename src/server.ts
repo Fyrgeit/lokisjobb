@@ -20,6 +20,49 @@ app.use(express.json());
 // Serve everything in /public
 app.use(express.static(path.join(process.cwd(), 'public')));
 
+async function runScraperIngestion(
+    searchQueries: string[],
+    repository: JobsRepository,
+    log: (message: string) => void,
+) {
+    const providers: JobProvider[] = [
+        new JarnvagsjobbProvider(),
+        new ArbetsformedlingenProvider(),
+        new JobblandProvider(),
+        new JobbsafariProvider(),
+    ];
+    const totals = { found: 0, added: 0, updated: 0, skipped: 0 };
+
+    for (const query of searchQueries) {
+        log(`--- Searching for query: "${query}" ---`);
+        for (const provider of providers) {
+            try {
+                log(
+                    `Starting job search with ${provider.name} provider for "${query}"...`,
+                );
+                const summary = await ingestFromSource(
+                    provider,
+                    query,
+                    repository,
+                );
+                totals.found += summary.found;
+                totals.added += summary.added;
+                totals.updated += summary.updated;
+                totals.skipped += summary.skipped;
+                log(
+                    `[${provider.name}] Found ${summary.found}, Added ${summary.added}, Updated ${summary.updated}`,
+                );
+            } catch (error: unknown) {
+                log(
+                    `[${provider.name}] Failed for query "${query}": ${error instanceof Error ? error.message : error}`,
+                );
+            }
+        }
+    }
+
+    return totals;
+}
+
 // Existing API endpoint for dashboard jobs
 app.get('/api/jobs', (_req, res) => {
     res.json(getJobs());
@@ -97,41 +140,11 @@ app.post('/api/ops/run-scraper', async (_req, res) => {
         const config = getConfig();
         const database = createDatabase(config.databasePath);
         const repository = new JobsRepository(database);
-        const providers: JobProvider[] = [
-            new JarnvagsjobbProvider(),
-            new ArbetsformedlingenProvider(),
-            new JobblandProvider(),
-            new JobbsafariProvider(),
-        ];
-
-        const totals = { found: 0, added: 0, updated: 0, skipped: 0 };
-
-        for (const query of config.searchQueries) {
-            log(`--- Searching for query: "${query}" ---`);
-            for (const provider of providers) {
-                try {
-                    log(
-                        `Starting job search with ${provider.name} provider for "${query}"...`,
-                    );
-                    const summary = await ingestFromSource(
-                        provider,
-                        query,
-                        repository,
-                    );
-                    totals.found += summary.found;
-                    totals.added += summary.added;
-                    totals.updated += summary.updated;
-                    totals.skipped += summary.skipped;
-                    log(
-                        `[${provider.name}] Found ${summary.found}, Added ${summary.added}, Updated ${summary.updated}`,
-                    );
-                } catch (error: unknown) {
-                    log(
-                        `[${provider.name}] Failed for query "${query}": ${error instanceof Error ? error.message : error}`,
-                    );
-                }
-            }
-        }
+        const totals = await runScraperIngestion(
+            config.searchQueries,
+            repository,
+            log,
+        );
 
         log(`--- Overall Ingestion Totals ---`);
         log(
@@ -141,15 +154,16 @@ app.post('/api/ops/run-scraper', async (_req, res) => {
         // Run AI Evaluation
         log(`\n--- AI Evaluation ---`);
         let evaluatedCount = 0;
+        let failedCount = 0;
+        const jobs = repository.list();
+        const unevaluatedJobs = jobs.filter((job) => job.aiCategory === null);
+        log(
+            `Starting evaluation: ${unevaluatedJobs.length} unknown jobs out of ${jobs.length} total.`,
+        );
+
         if (!config.geminiApiKey) {
             log('Skipping AI evaluation: GEMINI_API_KEY is not configured.');
         } else {
-            const jobs = repository.list();
-            const unevaluatedJobs = jobs.filter((job) => job.aiCategory === null);
-            log(
-                `Found ${unevaluatedJobs.length} unevaluated jobs out of ${jobs.length} total.`,
-            );
-
             for (const job of unevaluatedJobs) {
                 log(
                     `Evaluating job #${job.id}: "${job.title}" at ${job.company ?? 'Unknown'}...`,
@@ -164,17 +178,57 @@ app.post('/api/ops/run-scraper', async (_req, res) => {
                     log(` -> Category: ${category}`);
                     evaluatedCount++;
                 } catch (error: unknown) {
+                    failedCount++;
                     log(
                         `Failed to evaluate job #${job.id}: ${error instanceof Error ? error.message : error}`,
                     );
                 }
             }
-            log(`AI evaluation complete. Evaluated ${evaluatedCount} jobs.`);
         }
+        const remainingUnknownCount = repository
+            .list()
+            .filter((job) => job.aiCategory === null).length;
+        log(
+            `AI evaluation complete. Graded: ${evaluatedCount}, failed: ${failedCount}, still unknown: ${remainingUnknownCount}.`,
+        );
 
         database.close();
 
         res.json({ success: true, totals, evaluatedCount, logs });
+    } catch (error: unknown) {
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+            logs,
+        });
+    }
+});
+
+// Run Scraper Operation
+app.post('/api/ops/run-scraper-only', async (_req, res) => {
+    const logs: string[] = [];
+    const log = (msg: string) => {
+        logs.push(msg);
+        console.log(msg);
+    };
+
+    try {
+        const config = getConfig();
+        const database = createDatabase(config.databasePath);
+        const repository = new JobsRepository(database);
+        const totals = await runScraperIngestion(
+            config.searchQueries,
+            repository,
+            log,
+        );
+        database.close();
+
+        log('--- Overall Ingestion Totals ---');
+        log(
+            `Total found: ${totals.found}, Added: ${totals.added}, Updated: ${totals.updated}`,
+        );
+
+        res.json({ success: true, totals, logs });
     } catch (error: unknown) {
         res.status(500).json({
             success: false,
@@ -208,10 +262,11 @@ app.post('/api/ops/run-evaluator', async (_req, res) => {
         const unevaluatedJobs = jobs.filter((job) => job.aiCategory === null);
 
         log(
-            `Found ${unevaluatedJobs.length} unevaluated jobs out of ${jobs.length} total.`,
+            `Starting evaluation: ${unevaluatedJobs.length} unknown jobs out of ${jobs.length} total.`,
         );
 
         let evaluatedCount = 0;
+        let failedCount = 0;
         for (const job of unevaluatedJobs) {
             log(
                 `Evaluating job #${job.id}: "${job.title}" at ${job.company ?? 'Unknown'}...`,
@@ -226,14 +281,20 @@ app.post('/api/ops/run-evaluator', async (_req, res) => {
                 log(` -> Category: ${category}`);
                 evaluatedCount++;
             } catch (error: unknown) {
+                failedCount++;
                 log(
                     `Failed to evaluate job #${job.id}: ${error instanceof Error ? error.message : error}`,
                 );
             }
         }
 
+        const remainingUnknownCount = repository
+            .list()
+            .filter((job) => job.aiCategory === null).length;
         database.close();
-        log(`Evaluation complete. Evaluated ${evaluatedCount} jobs.`);
+        log(
+            `Evaluation complete. Graded: ${evaluatedCount}, failed: ${failedCount}, still unknown: ${remainingUnknownCount}.`,
+        );
         res.json({ success: true, evaluatedCount, logs });
     } catch (error: unknown) {
         res.status(500).json({
