@@ -145,7 +145,7 @@ app.post('/api/ops/run-scraper', async (_req, res) => {
             log('Skipping AI evaluation: GEMINI_API_KEY is not configured.');
         } else {
             const jobs = repository.list();
-            const unevaluatedJobs = jobs.filter((job) => job.aiScore === null);
+            const unevaluatedJobs = jobs.filter((job) => job.aiCategory === null);
             log(
                 `Found ${unevaluatedJobs.length} unevaluated jobs out of ${jobs.length} total.`,
             );
@@ -155,13 +155,13 @@ app.post('/api/ops/run-scraper', async (_req, res) => {
                     `Evaluating job #${job.id}: "${job.title}" at ${job.company ?? 'Unknown'}...`,
                 );
                 try {
-                    const { score, reasoning } = await evaluateJobWithGemini(
+                    const { category } = await evaluateJobWithGemini(
                         job,
                         config.geminiApiKey,
                         config.geminiModel,
                     );
-                    repository.updateAiScore(job.id, score);
-                    log(` -> Score: ${score} (${reasoning})`);
+                    repository.updateAiCategory(job.id, category);
+                    log(` -> Category: ${category}`);
                     evaluatedCount++;
                 } catch (error: unknown) {
                     log(
@@ -205,7 +205,7 @@ app.post('/api/ops/run-evaluator', async (_req, res) => {
         const database = createDatabase(config.databasePath);
         const repository = new JobsRepository(database);
         const jobs = repository.list();
-        const unevaluatedJobs = jobs.filter((job) => job.aiScore === null);
+        const unevaluatedJobs = jobs.filter((job) => job.aiCategory === null);
 
         log(
             `Found ${unevaluatedJobs.length} unevaluated jobs out of ${jobs.length} total.`,
@@ -217,13 +217,13 @@ app.post('/api/ops/run-evaluator', async (_req, res) => {
                 `Evaluating job #${job.id}: "${job.title}" at ${job.company ?? 'Unknown'}...`,
             );
             try {
-                const { score, reasoning } = await evaluateJobWithGemini(
+                const { category } = await evaluateJobWithGemini(
                     job,
                     config.geminiApiKey,
                     config.geminiModel,
                 );
-                repository.updateAiScore(job.id, score);
-                log(` -> Score: ${score} (${reasoning})`);
+                repository.updateAiCategory(job.id, category);
+                log(` -> Category: ${category}`);
                 evaluatedCount++;
             } catch (error: unknown) {
                 log(

@@ -8,6 +8,7 @@ const statusDropdownLabel = document.getElementById('statusDropdownLabel');
 const statusCheckboxes = document.querySelectorAll(
     'input[name="statusFilter"]',
 );
+const categoryFilter = document.getElementById('categoryFilter');
 const availabilityFilter = document.getElementById('availabilityFilter');
 const sourceFilter = document.getElementById('sourceFilter');
 const sortSelect = document.getElementById('sortSelect');
@@ -21,7 +22,16 @@ const statTotal = document.getElementById('statTotal');
 const statActive = document.getElementById('statActive');
 const statInterested = document.getElementById('statInterested');
 const statApplied = document.getElementById('statApplied');
-const statAiScore = document.getElementById('statAiScore');
+const statAiCategory = document.getElementById('statAiCategory');
+
+const categoryOrder = [
+    'Persontåg',
+    'Godståg',
+    'Växlare',
+    'Intressant',
+    'Ointressant',
+    'Okänd',
+];
 
 async function fetchJobs() {
     try {
@@ -80,26 +90,20 @@ function updateDashboard() {
     const interested = allJobs.filter((j) => j.status === 'interested').length;
     const applied = allJobs.filter((j) => j.status === 'applied').length;
 
-    const scoredJobs = allJobs.filter((j) => typeof j.aiScore === 'number');
-    const avgScore =
-        scoredJobs.length > 0
-            ? (
-                  scoredJobs.reduce((sum, j) => sum + j.aiScore, 0) /
-                  scoredJobs.length
-              ).toFixed(1)
-            : '-';
+    const categorizedJobs = allJobs.filter((j) => j.aiCategory);
 
     statTotal.textContent = total;
     statActive.textContent = active;
     statInterested.textContent = interested;
     statApplied.textContent = applied;
-    statAiScore.textContent = avgScore === '-' ? '-' : `${avgScore} / 10`;
+    statAiCategory.textContent = categorizedJobs.length;
 
     // 2. Filter & Sort
     const query = searchInput.value.toLowerCase().trim();
     const selectedStatuses = Array.from(statusCheckboxes)
         .filter((c) => c.checked)
         .map((c) => c.value);
+    const categoryVal = categoryFilter.value;
     const availabilityVal = availabilityFilter.value;
     const sourceVal = sourceFilter.value;
     const sortVal = sortSelect.value;
@@ -114,6 +118,8 @@ function updateDashboard() {
         const matchesStatus =
             selectedStatuses.length === 0 ||
             selectedStatuses.includes(job.status);
+        const matchesCategory =
+            !categoryVal || (job.aiCategory ?? 'Okänd') === categoryVal;
         const matchesAvailability =
             !availabilityVal || job.availability === availabilityVal;
         const matchesSource =
@@ -123,6 +129,7 @@ function updateDashboard() {
         return (
             matchesQuery &&
             matchesStatus &&
+            matchesCategory &&
             matchesAvailability &&
             matchesSource
         );
@@ -140,11 +147,11 @@ function updateDashboard() {
                 new Date(a.discoveredAt || 0) - new Date(b.discoveredAt || 0)
             );
         }
-        if (sortVal === 'score-desc') {
-            return (b.aiScore ?? -1) - (a.aiScore ?? -1);
-        }
-        if (sortVal === 'score-asc') {
-            return (a.aiScore ?? 999) - (b.aiScore ?? 999);
+        if (sortVal === 'category-asc') {
+            return (
+                categoryOrder.indexOf(a.aiCategory ?? 'Okänd') -
+                categoryOrder.indexOf(b.aiCategory ?? 'Okänd')
+            );
         }
         if (sortVal === 'title-asc') {
             return (a.title || '').localeCompare(b.title || '');
@@ -225,10 +232,16 @@ function updateDashboard() {
                       .join(' ')
                 : '';
 
-        const scoreBadge =
-            job.aiScore !== null && job.aiScore !== undefined
-                ? `<span class="px-2.5 py-1 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg text-xs font-semibold">AI Score: ${job.aiScore}</span>`
-                : '';
+        const categoryColors = {
+            Persontåg: 'bg-purple-50 text-purple-700 border border-purple-200',
+            Godståg: 'bg-purple-50 text-purple-700 border border-purple-200',
+            Växlare: 'bg-purple-50 text-purple-700 border border-purple-200',
+            Intressant: 'bg-amber-50 text-amber-700 border border-amber-200',
+            Ointressant: 'bg-rose-50 text-rose-700 border border-rose-200',
+            Okänd: 'bg-slate-100 text-slate-600 border border-slate-200',
+        };
+        const category = job.aiCategory ?? 'Okänd';
+        const categoryBadge = `<span class="px-2.5 py-1 ${categoryColors[category] || 'bg-slate-100 text-slate-700'} rounded-lg text-xs font-semibold">${category}</span>`;
 
         if (currentView === 'list') {
             const row = document.createElement('div');
@@ -243,7 +256,7 @@ function updateDashboard() {
                     <span class="text-xs px-2 py-0.5 rounded font-medium whitespace-nowrap ${availabilityColors[job.availability] || 'bg-slate-100 text-slate-600'}">
                         ${job.availability}
                     </span>
-                    ${scoreBadge}
+                    ${categoryBadge}
                     <div class="min-w-0 flex-1">
                         <h3 class="font-bold text-slate-900 truncate">
                             <a href="${job.url}" target="_blank" class="hover:text-indigo-600 transition">${job.title}</a>
@@ -280,7 +293,7 @@ function updateDashboard() {
                             <span class="text-xs px-2.5 py-1 rounded-lg font-medium ${availabilityColors[job.availability] || 'bg-slate-100 text-slate-600'}">
                                 ${job.availability}
                             </span>
-                            ${scoreBadge}
+                            ${categoryBadge}
                         </div>
                     </div>
 

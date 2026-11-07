@@ -3,6 +3,7 @@ import type {
     Job,
     JobSourceRecord,
     JobStatus,
+    AiCategory,
     ScrapedJob,
     SourceAvailability,
 } from '../types/job.js';
@@ -19,7 +20,7 @@ type JobRow = {
     application_deadline: string | null;
     discovered_at: string;
     last_seen_at: string;
-    ai_score: number | null;
+    ai_category: AiCategory | null;
     status: JobStatus;
 };
 
@@ -73,7 +74,7 @@ function toJob(row: JobRow, sources: JobSourceRecord[]): Job {
         applicationDeadline: row.application_deadline,
         discoveredAt: row.discovered_at,
         lastSeenAt: row.last_seen_at,
-        aiScore: row.ai_score,
+        aiCategory: row.ai_category,
         status: row.status,
         sources,
         availability: deriveAvailability(sources, row.application_deadline),
@@ -129,7 +130,7 @@ export class JobsRepository {
 
         if (existing) {
             // Refresh source-owned fields, but leave discovered_at, status, and
-            // ai_score untouched so local decisions survive re-ingestion.
+            // ai_category untouched so existing evaluations survive re-ingestion.
             this.database
                 .prepare(
                     'UPDATE jobs SET title = ?, url = ?, description = ?, source_url = ?, last_seen_at = ?, application_deadline = ? WHERE id = ?',
@@ -153,12 +154,12 @@ export class JobsRepository {
             return 'updated';
         }
 
-        // New jobs start with local defaults. The evaluator can fill ai_score
+        // New jobs start with local defaults. The evaluator can fill ai_category
         // later without changing the source or ingestion layers.
         this.database
             .prepare(
                 `INSERT INTO jobs
-          (title, company, location, url, source_url, description, application_deadline, discovered_at, last_seen_at, ai_score, status)
+          (title, company, location, url, source_url, description, application_deadline, discovered_at, last_seen_at, ai_category, status)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'interested')`,
             )
             .run(
@@ -238,20 +239,17 @@ export class JobsRepository {
         return rows.map((row) => toJob(row, this.sourcesForJob(row.id)));
     }
 
-    public updateAiScore(id: number, aiScore: number | null): void {
-        console.log(
-            `[JobsRepository] updateAiScore: id=${id}, aiScore=${aiScore}`,
-        );
-        if (aiScore !== null && aiScore <= 0) {
+    public updateAiCategory(id: number, category: AiCategory): void {
+        if (category === 'Ointressant') {
             this.database
                 .prepare(
-                    'UPDATE jobs SET ai_score = ?, status = ? WHERE id = ?',
+                    'UPDATE jobs SET ai_category = ?, status = ? WHERE id = ?',
                 )
-                .run(aiScore, 'irrelevant', id);
+                .run(category, 'irrelevant', id);
         } else {
             this.database
-                .prepare('UPDATE jobs SET ai_score = ? WHERE id = ?')
-                .run(aiScore, id);
+                .prepare('UPDATE jobs SET ai_category = ? WHERE id = ?')
+                .run(category, id);
         }
     }
 

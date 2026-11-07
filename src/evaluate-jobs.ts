@@ -16,20 +16,20 @@ async function main() {
     const repository = new JobsRepository(database);
 
     const jobs = repository.list();
-    const unevaluatedJobs = jobs.filter((job) => job.aiScore === null);
+    const unevaluatedJobs = jobs.filter((job) => job.aiCategory === null);
 
     console.log(`Found ${unevaluatedJobs.length} unevaluated jobs out of ${jobs.length} total.`);
 
     for (const job of unevaluatedJobs) {
         console.log(`Evaluating job #${job.id}: "${job.title}" at ${job.company ?? 'Unknown'}...`);
         try {
-            const { score, reasoning } = await evaluateJobWithGemini(
+            const { category } = await evaluateJobWithGemini(
                 job,
                 config.geminiApiKey,
                 config.geminiModel,
             );
-            repository.updateAiScore(job.id, score);
-            console.log(` -> Score: ${score} (${reasoning})`);
+            repository.updateAiCategory(job.id, category);
+            console.log(` -> Category: ${category}`);
         } catch (error: unknown) {
             console.error(
                 `Failed to evaluate job #${job.id}:`,

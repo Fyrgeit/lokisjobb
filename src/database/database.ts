@@ -15,7 +15,7 @@ const schema = `
     application_deadline TEXT,
     discovered_at TEXT NOT NULL,
     last_seen_at TEXT NOT NULL,
-    ai_score REAL,
+    ai_category TEXT,
     status TEXT NOT NULL DEFAULT 'interested'
   );
 
@@ -56,10 +56,27 @@ function migrateJobsTable(database: Database.Database): void {
         database.exec("UPDATE jobs SET source_url = url WHERE source_url = ''");
     }
 
+    if (!columns.some((column) => column.name === 'ai_category')) {
+        database.exec('ALTER TABLE jobs ADD COLUMN ai_category TEXT');
+    }
+
+    database.exec(`
+        UPDATE jobs
+        SET ai_category = NULL
+        WHERE ai_category IN (
+            'Lokförare persontåg',
+            'Lokförare godståg',
+            'Potentially interesting railway related job',
+            'Not interesting'
+        )
+    `);
+
     database.exec("UPDATE jobs SET status = 'interested' WHERE status = 'new'");
-    database.exec(
-        "UPDATE jobs SET status = 'irrelevant' WHERE ai_score = 0 AND status = 'interested'",
-    );
+    if (columns.some((column) => column.name === 'ai_score')) {
+        database.exec(
+            "UPDATE jobs SET status = 'irrelevant' WHERE ai_score = 0 AND status = 'interested'",
+        );
+    }
 
     // Canonicalize job URLs and merge duplicates
     const jobs = database.prepare('SELECT id, url FROM jobs').all() as Array<{

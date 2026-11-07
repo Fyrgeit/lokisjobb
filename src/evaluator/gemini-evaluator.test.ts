@@ -4,7 +4,7 @@ import { evaluateJobWithGemini } from './gemini-evaluator.js';
 import type { Job } from '../types/job.js';
 
 describe('evaluateJobWithGemini', () => {
-    it('correctly parses evaluation score and reasoning from Gemini response', async () => {
+    it('parses one category from Gemini without a rationale', async () => {
         const mockJob: Job = {
             id: 1,
             title: 'Tågväxlare',
@@ -15,7 +15,7 @@ describe('evaluateJobWithGemini', () => {
             applicationDeadline: null,
             discoveredAt: '2026-01-01T00:00:00.000Z',
             lastSeenAt: '2026-01-01T00:00:00.000Z',
-            aiScore: null,
+            aiCategory: null,
             status: 'interested',
             availability: 'active',
             sources: [],
@@ -30,8 +30,7 @@ describe('evaluateJobWithGemini', () => {
                                 parts: [
                                     {
                                         text: JSON.stringify({
-                                            score: 0.95,
-                                            reasoning: 'Directly relates to railway shunting (växlare).',
+                                            category: 'Växlare',
                                         }),
                                     },
                                 ],
@@ -47,8 +46,73 @@ describe('evaluateJobWithGemini', () => {
 
         const result = await evaluateJobWithGemini(mockJob, 'fake-api-key');
 
-        assert.equal(result.score, 0.95);
-        assert.equal(result.reasoning, 'Directly relates to railway shunting (växlare).');
+        assert.deepEqual(result, { category: 'Växlare' });
         assert.equal(mockFetch.mock.callCount(), 1);
+    });
+
+    it('rejects categories outside the configured list', async () => {
+        const mockJob: Job = {
+            id: 1,
+            title: 'Truck driver',
+            company: null,
+            location: null,
+            url: 'https://example.com/job/2',
+            description: null,
+            applicationDeadline: null,
+            discoveredAt: '2026-01-01T00:00:00.000Z',
+            lastSeenAt: '2026-01-01T00:00:00.000Z',
+            aiCategory: null,
+            status: 'interested',
+            availability: 'active',
+            sources: [],
+        };
+        global.fetch = mock.fn(async () => new Response(
+            JSON.stringify({
+                candidates: [{
+                    content: {
+                        parts: [{ text: JSON.stringify({ category: 'Maybe' }) }],
+                    },
+                }],
+            }),
+            { status: 200 },
+        )) as unknown as typeof fetch;
+
+        await assert.rejects(
+            evaluateJobWithGemini(mockJob, 'fake-api-key'),
+            /Invalid category from Gemini API/,
+        );
+    });
+
+    it('rejects Okänd because it represents an unevaluated job, not an AI result', async () => {
+        const mockJob: Job = {
+            id: 1,
+            title: 'Unknown job',
+            company: null,
+            location: null,
+            url: 'https://example.com/job/3',
+            description: null,
+            applicationDeadline: null,
+            discoveredAt: '2026-01-01T00:00:00.000Z',
+            lastSeenAt: '2026-01-01T00:00:00.000Z',
+            aiCategory: null,
+            status: 'interested',
+            availability: 'active',
+            sources: [],
+        };
+        global.fetch = mock.fn(async () => new Response(
+            JSON.stringify({
+                candidates: [{
+                    content: {
+                        parts: [{ text: JSON.stringify({ category: 'Okänd' }) }],
+                    },
+                }],
+            }),
+            { status: 200 },
+        )) as unknown as typeof fetch;
+
+        await assert.rejects(
+            evaluateJobWithGemini(mockJob, 'fake-api-key'),
+            /Invalid category from Gemini API/,
+        );
     });
 });

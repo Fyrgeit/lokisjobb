@@ -23,7 +23,9 @@ export interface RedundancyAnalysisReport {
 export function analyzeProviderRedundancy(
     jobs: Job[],
 ): RedundancyAnalysisReport {
-    const validJobs = jobs.filter((job) => job.aiScore !== 0);
+    const validJobs = jobs.filter(
+        (job) => job.aiCategory !== 'Ointressant',
+    );
     const totalUniqueJobs = validJobs.length;
     if (totalUniqueJobs === 0) {
         return {

@@ -26,7 +26,7 @@ function formatJob(job: Job): string {
         `Application deadline: ${job.applicationDeadline ?? 'Not specified'}`,
         `Availability: ${job.availability}`,
         `Status: ${job.status}`,
-        `AI score: ${job.aiScore ?? 'Not evaluated'}`,
+        `AI category: ${job.aiCategory ?? 'Not evaluated'}`,
         `Discovered: ${job.discoveredAt}`,
         `Last seen: ${job.lastSeenAt}`,
         `URL: ${job.url}`,

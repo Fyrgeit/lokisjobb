@@ -1,8 +1,19 @@
-import type { Job } from '../types/job.js';
+import type { AiCategory, Job } from '../types/job.js';
 
 export interface EvaluationResult {
-    score: number; // 0.0 to 1.0
-    reasoning: string;
+    category: AiCategory;
+}
+
+const aiCategories: ReadonlySet<string> = new Set<AiCategory>([
+    'Persontåg',
+    'Godståg',
+    'Växlare',
+    'Intressant',
+    'Ointressant',
+]);
+
+function isAiCategory(value: unknown): value is AiCategory {
+    return typeof value === 'string' && aiCategories.has(value);
 }
 
 export async function evaluateJobWithGemini(
@@ -13,21 +24,25 @@ export async function evaluateJobWithGemini(
     const modelName = model.includes('/') ? model.split('/')[1] : model;
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
-    const prompt = `Du är en expert på arbetsmarknaden inom järnväg och transport (såsom lokförare, växlare, tågmästare, etc.).
-Utvärdera följande jobbannons och sätt ett relevansbetyg mellan 0.0 och 1.0 (där 1.0 är extremt relevant, 0.5 är måttligt relevant/närliggande, och 0.0 är helt irrelevant).
+    const prompt = `Du är expert på att klassificera jobbannonser inom järnväg.
 
-STRIKT KRAV: Jobbet måste kräva eller utnyttja ett giltigt lokförarbevis för att vara relevant. 
-Om jobbet handlar om t.ex. "Lastväxlare CE" (lastbilschaufför med lastväxlare) eller andra roller inom lastbil/vägtransport som inte har med tåg/järnväg att göra och inte kräver lokförarbevis, ska det omedelbart ges betyget 0.0.
+Klassificera jobbannonsen i exakt en av följande kategorier:
+- "Persontåg": arbetet går huvudsakligen ut på att köra persontåg. Roslagsbanans förare klassas här.
+- "Godståg": arbetet går huvudsakligen ut på att köra godståg, inklusive arbets- och transporttåg för banarbeten.
+- "Växlare": arbetet går huvudsakligen ut på växling, rangering eller tågbildning.
+- "Intressant": annan intressant roll med direkt koppling till tågtrafiken, till exempel tunnelbane- eller spårvagnsförare, tågvärd/tågmästare, trafikledning eller tågklarering. Tunnelbane- och spårvagnsförare ska alltid placeras här, inte i "Persontåg".
+- "Ointressant": jobbet saknar tydlig koppling till järnväg eller tågtrafik. Vägtransport, lastbilsjobb och "lastväxlare" för lastbil hör hit. Välj även denna kategori om en utvärderad annons saknar tillräcklig information för att fastställa en relevant järnvägsroll.
+
+Välj kategorin efter arbetsuppgifterna, inte enbart arbetsgivaren eller jobbtiteln. "Okänd" används endast i appen för jobb som ännu inte har utvärderats och ska inte returneras av dig.
 
 Jobbtitel: ${job.title}
 Företag: ${job.company ?? 'Okänt'}
 Plats: ${job.location ?? 'Okänd'}
 Beskrivning: ${job.description ?? 'Ingen beskrivning tillgänglig'}
 
-Svara strikt med ett JSON-objekt i exakt detta format:
+Svara med endast ett JSON-objekt som innehåller kategorin. Lägg inte till någon förklaring eller andra fält:
 {
-  "score": 0.85,
-  "reasoning": "Kort motivering på svenska varför jobbet är relevant eller irrelevant utifrån lokförarbevis."
+  "category": "Persontåg"
 }`;
 
     const response = await fetch(url, {
@@ -64,9 +79,16 @@ Svara strikt med ett JSON-objekt i exakt detta format:
         throw new Error('Empty response from Gemini API');
     }
 
-    const parsed = JSON.parse(text) as { score?: number; reasoning?: string };
-    const score = typeof parsed.score === 'number' ? Math.max(0, Math.min(1, parsed.score)) : 0.5;
-    const reasoning = typeof parsed.reasoning === 'string' ? parsed.reasoning : 'Ingen motivering angiven';
+    const parsed: unknown = JSON.parse(text);
+    if (
+        typeof parsed !== 'object' ||
+        parsed === null ||
+        Object.keys(parsed).length !== 1 ||
+        !('category' in parsed) ||
+        !isAiCategory(parsed.category)
+    ) {
+        throw new Error('Invalid category from Gemini API');
+    }
 
-    return { score, reasoning };
+    return { category: parsed.category };
 }

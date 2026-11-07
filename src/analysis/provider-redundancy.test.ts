@@ -16,7 +16,7 @@ describe('analyzeProviderRedundancy', () => {
                 applicationDeadline: null,
                 discoveredAt: '2026-01-01T00:00:00.000Z',
                 lastSeenAt: '2026-01-01T00:00:00.000Z',
-                aiScore: null,
+                aiCategory: null,
                 status: 'interested',
                 availability: 'active',
                 sources: [
@@ -48,7 +48,7 @@ describe('analyzeProviderRedundancy', () => {
                 applicationDeadline: null,
                 discoveredAt: '2026-01-01T00:00:00.000Z',
                 lastSeenAt: '2026-01-01T00:00:00.000Z',
-                aiScore: null,
+                aiCategory: null,
                 status: 'interested',
                 availability: 'active',
                 sources: [
@@ -72,7 +72,7 @@ describe('analyzeProviderRedundancy', () => {
                 applicationDeadline: null,
                 discoveredAt: '2026-01-01T00:00:00.000Z',
                 lastSeenAt: '2026-01-01T00:00:00.000Z',
-                aiScore: null,
+                aiCategory: null,
                 status: 'interested',
                 availability: 'active',
                 sources: [
@@ -109,7 +109,7 @@ describe('analyzeProviderRedundancy', () => {
         assert.equal(bestCover.coversAll, true);
     });
 
-    it('excludes jobs with aiScore === 0 from redundancy analysis', () => {
+    it('excludes jobs classified as uninteresting from redundancy analysis', () => {
         const mockJobs: Job[] = [
             {
                 id: 1,
@@ -121,7 +121,7 @@ describe('analyzeProviderRedundancy', () => {
                 applicationDeadline: null,
                 discoveredAt: '2026-01-01T00:00:00.000Z',
                 lastSeenAt: '2026-01-01T00:00:00.000Z',
-                aiScore: 0,
+                aiCategory: 'Ointressant',
                 status: 'irrelevant',
                 availability: 'active',
                 sources: [
@@ -145,7 +145,7 @@ describe('analyzeProviderRedundancy', () => {
                 applicationDeadline: null,
                 discoveredAt: '2026-01-01T00:00:00.000Z',
                 lastSeenAt: '2026-01-01T00:00:00.000Z',
-                aiScore: 5,
+                aiCategory: 'Godståg',
                 status: 'interested',
                 availability: 'active',
                 sources: [

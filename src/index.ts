@@ -76,7 +76,7 @@ async function main(): Promise<void> {
             );
         } else {
             const jobs = repository.list();
-            const unevaluatedJobs = jobs.filter((job) => job.aiScore === null);
+            const unevaluatedJobs = jobs.filter((job) => job.aiCategory === null);
             console.log(
                 `Found ${unevaluatedJobs.length} unevaluated jobs out of ${jobs.length} total.`,
             );
@@ -89,13 +89,13 @@ async function main(): Promise<void> {
                 try {
                     const { evaluateJobWithGemini } =
                         await import('./evaluator/gemini-evaluator.js');
-                    const { score, reasoning } = await evaluateJobWithGemini(
+                    const { category } = await evaluateJobWithGemini(
                         job,
                         config.geminiApiKey,
                         config.geminiModel,
                     );
-                    repository.updateAiScore(job.id, score);
-                    console.log(` -> Score: ${score} (${reasoning})`);
+                    repository.updateAiCategory(job.id, category);
+                    console.log(` -> Category: ${category}`);
                     evaluatedCount++;
                 } catch (error: unknown) {
                     console.error(

@@ -47,7 +47,7 @@ npm run dev
 
 1. **Deduplication & Provenance**: Jobs use canonical `url` as the primary deduplication key. The `job_sources` table tracks every source listing where a job appeared, recording first and latest sighting times. Known Jobylon URL variants are automatically normalized so syndicated listings converge without losing provenance.
 2. **Availability Tracking**: Each source connection tracks availability as `active`, `closed`, or `unknown`. A job is marked `closed` only when all known sources report it closed. Closed jobs are retained for historical analysis.
-3. **AI Evaluation (Gemini)**: Leverages Google Gemini to evaluate job postings against custom criteria, storing `ai_score` and reasoning in the database.
+3. **AI Classification (Gemini)**: Assigns each evaluated job one of `Persontåg`, `Godståg`, `Växlare`, `Intressant`, or `Ointressant`; unevaluated jobs remain `Okänd`. The classifier returns no rationale.
 4. **Source Redundancy Analysis**: Analyzes overlap, exclusive job coverage, and minimal source combinations needed for 100% market coverage.
 5. **Web Interface & API**: Express backend serving a local frontend interface in `public/` for inspecting and viewing jobs.
 

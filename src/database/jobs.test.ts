@@ -45,7 +45,7 @@ describe('JobsRepository.upsert', () => {
         assert.equal(job?.discoveredAt, '2026-01-01T10:00:00.000Z');
         assert.equal(job?.lastSeenAt, '2026-01-01T10:00:00.000Z');
         assert.equal(job?.status, 'interested');
-        assert.equal(job?.aiScore, null);
+        assert.equal(job?.aiCategory, null);
         assert.equal(job?.applicationDeadline, '2026-01-15');
         assert.deepEqual(job?.sources, [
             {
@@ -69,7 +69,7 @@ describe('JobsRepository.upsert', () => {
         const firstJob = repository.findByUrl(scrapedJob.url);
         assert.ok(firstJob);
         repository.updateStatus(firstJob.id, 'interested');
-        repository.updateAiScore(firstJob.id, 0.85);
+        repository.updateAiCategory(firstJob.id, 'Persontåg');
 
         // These values represent local decisions and must survive a source
         // refresh even though source-owned fields and title are updated.
@@ -86,7 +86,7 @@ describe('JobsRepository.upsert', () => {
         assert.equal(job?.lastSeenAt, '2026-01-02T10:00:00.000Z');
         assert.equal(job?.title, 'Updated title from source');
         assert.equal(job?.status, 'interested');
-        assert.equal(job?.aiScore, 0.85);
+        assert.equal(job?.aiCategory, 'Persontåg');
     });
 
     it('removes an older source row when a canonical duplicate is found', () => {
@@ -139,7 +139,7 @@ describe('JobsRepository.upsert', () => {
         assert.equal(job?.sources[0]?.availability, 'closed');
     });
 
-    it('sets status to irrelevant when ai score is 0 and remembers it upon re-ingestion', () => {
+    it('sets status to irrelevant for uninteresting jobs and remembers it upon re-ingestion', () => {
         const repository = createRepository();
         repository.upsert(
             scrapedJob,
@@ -148,11 +148,11 @@ describe('JobsRepository.upsert', () => {
         );
         const firstJob = repository.findByUrl(scrapedJob.url);
         assert.ok(firstJob);
-        repository.updateAiScore(firstJob.id, 0);
+        repository.updateAiCategory(firstJob.id, 'Ointressant');
 
-        const jobAfterScore = repository.findByUrl(scrapedJob.url);
-        assert.equal(jobAfterScore?.aiScore, 0);
-        assert.equal(jobAfterScore?.status, 'irrelevant');
+        const jobAfterCategory = repository.findByUrl(scrapedJob.url);
+        assert.equal(jobAfterCategory?.aiCategory, 'Ointressant');
+        assert.equal(jobAfterCategory?.status, 'irrelevant');
 
         // Re-ingest the same job
         repository.upsert(
@@ -162,7 +162,7 @@ describe('JobsRepository.upsert', () => {
         );
 
         const jobAfterReingest = repository.findByUrl(scrapedJob.url);
-        assert.equal(jobAfterReingest?.aiScore, 0);
+        assert.equal(jobAfterReingest?.aiCategory, 'Ointressant');
         assert.equal(jobAfterReingest?.status, 'irrelevant');
     });
 
