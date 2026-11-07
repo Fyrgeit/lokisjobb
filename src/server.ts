@@ -4,13 +4,9 @@ import { getJobs } from './list-jobs.js';
 import { getConfig } from './config/config.js';
 import { createDatabase } from './database/database.js';
 import { JobsRepository } from './database/jobs.js';
+import { evaluateUnevaluatedJobs } from './evaluator/job-evaluation.js';
+import { createProviders } from './providers/create-providers.js';
 import { ingestFromSource } from './scraper/ingestion.js';
-import { ArbetsformedlingenProvider } from './providers/arbetsformedlingen-provider.js';
-import { JarnvagsjobbProvider } from './providers/jarnvagsjobb-provider.js';
-import { JobblandProvider } from './providers/jobbland-provider.js';
-import { JobbsafariProvider } from './providers/jobbsafari-provider.js';
-import type { JobProvider } from './providers/job-provider.js';
-import { evaluateJobWithGemini } from './evaluator/gemini-evaluator.js';
 import { analyzeProviderRedundancy } from './analysis/provider-redundancy.js';
 
 const app = express();
@@ -51,12 +47,7 @@ async function runScraperIngestion(
     repository: JobsRepository,
     log: (message: string) => void,
 ) {
-    const providers: JobProvider[] = [
-        new JarnvagsjobbProvider(),
-        new ArbetsformedlingenProvider(),
-        new JobblandProvider(),
-        new JobbsafariProvider(),
-    ];
+    const providers = createProviders();
     const totals = { found: 0, added: 0, updated: 0, skipped: 0 };
 
     for (const query of searchQueries) {
@@ -99,8 +90,6 @@ app.get('/api/database/stats', (_req, res) => {
     try {
         const config = getConfig();
         const db = createDatabase(config.databasePath);
-        const repo = new JobsRepository(db);
-        const jobs = repo.list();
 
         const jobCountRow = db
             .prepare('SELECT COUNT(*) as count FROM jobs')
@@ -176,48 +165,23 @@ app.post('/api/ops/run-scraper', async (_req, res) => {
 
         // Run AI Evaluation
         log(`\n--- AI-klassificering ---`);
-        let evaluatedCount = 0;
-        let failedCount = 0;
-        const jobs = repository.list();
-        const unevaluatedJobs = jobs.filter((job) => job.aiCategory === null);
-        log(
-            `Börjar klassificera ${unevaluatedJobs.length} okategoriserade jobb av ${jobs.length} totalt.`,
+        const evaluation = await evaluateUnevaluatedJobs(
+            repository,
+            config.geminiApiKey,
+            config.geminiModel,
+            { log, error: log },
         );
-
-        if (!config.geminiApiKey) {
-            log('Hoppar över AI-klassificeringen: GEMINI_API_KEY är inte konfigurerad.');
-        } else {
-            for (const job of unevaluatedJobs) {
-                log(
-                    `Klassificerar jobb #${job.id}: "${job.title}" hos ${job.company ?? 'okänt företag'}...`,
-                );
-                try {
-                    const { category } = await evaluateJobWithGemini(
-                        job,
-                        config.geminiApiKey,
-                        config.geminiModel,
-                    );
-                    repository.updateAiCategory(job.id, category);
-                    log(` -> Category: ${category}`);
-                    evaluatedCount++;
-                } catch (error: unknown) {
-                    failedCount++;
-                    log(
-                        `Det gick inte att klassificera jobb #${job.id}: ${error instanceof Error ? error.message : error}`,
-                    );
-                }
-            }
-        }
-        const remainingUnknownCount = repository
-            .list()
-            .filter((job) => job.aiCategory === null).length;
         log(
-            `AI-klassificeringen är klar. Klassificerade: ${evaluatedCount}, misslyckade: ${failedCount}, återstående okategoriserade: ${remainingUnknownCount}.`,
+            `AI-klassificeringen är klar. Klassificerade: ${evaluation.evaluatedCount}, misslyckade: ${evaluation.failedCount}, återstående okategoriserade: ${evaluation.remainingUnknownCount}.`,
         );
 
         database.close();
 
-        stream.complete({ success: true, totals, evaluatedCount });
+        stream.complete({
+            success: true,
+            totals,
+            evaluatedCount: evaluation.evaluatedCount,
+        });
     } catch (error: unknown) {
         stream.fail(error);
     }
@@ -268,44 +232,20 @@ app.post('/api/ops/run-evaluator', async (_req, res) => {
         const log = stream.log;
         const database = createDatabase(config.databasePath);
         const repository = new JobsRepository(database);
-        const jobs = repository.list();
-        const unevaluatedJobs = jobs.filter((job) => job.aiCategory === null);
-
-        log(
-            `Börjar klassificera ${unevaluatedJobs.length} okategoriserade jobb av ${jobs.length} totalt.`,
+        const evaluation = await evaluateUnevaluatedJobs(
+            repository,
+            config.geminiApiKey,
+            config.geminiModel,
+            { log, error: log },
         );
-
-        let evaluatedCount = 0;
-        let failedCount = 0;
-        for (const job of unevaluatedJobs) {
-            log(
-                `Klassificerar jobb #${job.id}: "${job.title}" hos ${job.company ?? 'okänt företag'}...`,
-            );
-            try {
-                const { category } = await evaluateJobWithGemini(
-                    job,
-                    config.geminiApiKey,
-                    config.geminiModel,
-                );
-                repository.updateAiCategory(job.id, category);
-                log(` -> Category: ${category}`);
-                evaluatedCount++;
-            } catch (error: unknown) {
-                failedCount++;
-                log(
-                    `Det gick inte att klassificera jobb #${job.id}: ${error instanceof Error ? error.message : error}`,
-                );
-            }
-        }
-
-        const remainingUnknownCount = repository
-            .list()
-            .filter((job) => job.aiCategory === null).length;
         database.close();
         log(
-            `Klassificeringen är klar. Klassificerade: ${evaluatedCount}, misslyckade: ${failedCount}, återstående okategoriserade: ${remainingUnknownCount}.`,
+            `Klassificeringen är klar. Klassificerade: ${evaluation.evaluatedCount}, misslyckade: ${evaluation.failedCount}, återstående okategoriserade: ${evaluation.remainingUnknownCount}.`,
         );
-        stream.complete({ success: true, evaluatedCount });
+        stream.complete({
+            success: true,
+            evaluatedCount: evaluation.evaluatedCount,
+        });
     } catch (error: unknown) {
         if (stream) {
             stream.fail(error);

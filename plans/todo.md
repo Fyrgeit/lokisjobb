@@ -1,1 +1,7 @@
 - Refactor incrementally, one well-scoped area at a time. Reduce duplication and remove unused code without splitting the project into unnecessary files. Prioritize clarity and correctness over reducing line count. While you do this, flag if there are parts of the code that seem wrong or could be improved, and make a note to revisit them later. Keep tests that protect important behavior and prevent regressions. Update or add tests when behavior changes; remove tests only when they are redundant, obsolete, or tied to implementation rather than behavior.
+
+Flags:
+
+- Completed: centralized the provider registry and consolidated CLI/server AI evaluation.
+
+Revisit: review the database migration's silent catch and server database cleanup paths.

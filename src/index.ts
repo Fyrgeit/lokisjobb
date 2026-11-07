@@ -1,23 +1,9 @@
 import { getConfig } from './config/config.js';
 import { createDatabase } from './database/database.js';
 import { JobsRepository } from './database/jobs.js';
+import { evaluateUnevaluatedJobs } from './evaluator/job-evaluation.js';
+import { createProviders } from './providers/create-providers.js';
 import { ingestFromSource } from './scraper/ingestion.js';
-import { ArbetsformedlingenProvider } from './providers/arbetsformedlingen-provider.js';
-import { JarnvagsjobbProvider } from './providers/jarnvagsjobb-provider.js';
-import { JobblandProvider } from './providers/jobbland-provider.js';
-import { JobbsafariProvider } from './providers/jobbsafari-provider.js';
-import type { JobProvider } from './providers/job-provider.js';
-
-function createProviders(): JobProvider[] {
-    // Keep the registry explicit so adding a provider is visible at the CLI
-    // boundary and the order of network requests stays predictable.
-    return [
-        new JarnvagsjobbProvider(),
-        new ArbetsformedlingenProvider(),
-        new JobblandProvider(),
-        new JobbsafariProvider(),
-    ];
-}
 
 async function main(): Promise<void> {
     // The CLI composes the application: configuration, database, provider, and
@@ -70,42 +56,18 @@ async function main(): Promise<void> {
 
         // Run AI Evaluation on unevaluated jobs
         console.log(`\n--- AI-klassificering ---`);
-        if (!config.geminiApiKey) {
+        const evaluation = await evaluateUnevaluatedJobs(
+            repository,
+            config.geminiApiKey,
+            config.geminiModel,
+            {
+                log: (message) => console.log(message),
+                error: (message) => console.error(message),
+            },
+        );
+        if (config.geminiApiKey) {
             console.log(
-                'Hoppar över AI-klassificeringen: GEMINI_API_KEY är inte konfigurerad.',
-            );
-        } else {
-            const jobs = repository.list();
-            const unevaluatedJobs = jobs.filter((job) => job.aiCategory === null);
-            console.log(
-                `Hittade ${unevaluatedJobs.length} okategoriserade jobb av ${jobs.length} totalt.`,
-            );
-
-            let evaluatedCount = 0;
-            for (const job of unevaluatedJobs) {
-                console.log(
-                    `Klassificerar jobb #${job.id}: "${job.title}" hos ${job.company ?? 'okänt företag'}...`,
-                );
-                try {
-                    const { evaluateJobWithGemini } =
-                        await import('./evaluator/gemini-evaluator.js');
-                    const { category } = await evaluateJobWithGemini(
-                        job,
-                        config.geminiApiKey,
-                        config.geminiModel,
-                    );
-                    repository.updateAiCategory(job.id, category);
-                    console.log(` -> Kategori: ${category}`);
-                    evaluatedCount++;
-                } catch (error: unknown) {
-                    console.error(
-                        `Det gick inte att klassificera jobb #${job.id}:`,
-                        error instanceof Error ? error.message : error,
-                    );
-                }
-            }
-            console.log(
-                `AI-klassificeringen är klar. Klassificerade ${evaluatedCount} jobb.`,
+                `AI-klassificeringen är klar. Klassificerade ${evaluation.evaluatedCount} jobb.`,
             );
         }
     } finally {
