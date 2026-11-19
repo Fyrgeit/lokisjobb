@@ -17,22 +17,22 @@ async function main() {
         console.log(`=== Analys av överlapp mellan jobbportaler ===`);
         console.log(`Unika jobb totalt: ${report.totalUniqueJobs}\n`);
 
-        console.log(`--- Källstatistik ---`);
-        for (const source of report.sources) {
-            const tag = source.noExclusiveJobs ? ' [inga unika jobb]' : '';
+        console.log(`--- Leverantörsstatistik ---`);
+        for (const provider of report.providers) {
+            const tag = provider.noExclusiveJobs ? ' [inga unika jobb]' : '';
             console.log(
-                `• ${source.name}: ${source.totalJobs} jobb (${source.coveragePercentage} %), ${source.exclusiveJobs} unika jobb${tag}`,
+                `• ${provider.name}: ${provider.totalJobs} jobb (${provider.coveragePercentage} %), ${provider.exclusiveJobs} unika jobb${tag}`,
             );
         }
 
-        console.log(`\n--- Minsta källkombinationer (100 % täckning) ---`);
+        console.log(`\n--- Minsta leverantörskombinationer (100 % täckning) ---`);
         if (report.minimalCovers.length === 0) {
             console.log('Ingen enskild kombination täcker 100 % av jobben.');
         } else {
             const topCovers = report.minimalCovers.slice(0, 3);
             for (const cover of topCovers) {
                 console.log(
-                    `[ ${cover.sources.join(', ')} ] -> Täcker ${cover.coveragePercentage} % av jobben`,
+                    `[ ${cover.providers.join(', ')} ] -> Täcker ${cover.coveragePercentage} % av jobben`,
                 );
             }
         }
@@ -42,6 +42,6 @@ async function main() {
 }
 
 main().catch((error) => {
-    console.error('Det gick inte att analysera källornas överlapp:', error);
+    console.error('Det gick inte att analysera leverantörernas överlapp:', error);
     process.exit(1);
 });

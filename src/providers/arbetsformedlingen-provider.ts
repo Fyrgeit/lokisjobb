@@ -40,10 +40,9 @@ export function mapArbetsformedlingenHit(hit: JobSearchHit): ScrapedJob | null {
         location: cleanText(
             hit.workplace_address?.municipality ?? hit.workplace_address?.city,
         ),
-        url: hit.webpage_url,
-        sourceUrl: hit.webpage_url,
+        listingUrl: hit.webpage_url,
         ...(hit.application_details?.url
-            ? { url: hit.application_details.url }
+            ? { applicationUrl: hit.application_details.url }
             : {}),
         description: cleanText(hit.description?.text),
         applicationDeadline: formatDeadline(hit.application_deadline),

@@ -10,14 +10,14 @@ describe('evaluateJobWithGemini', () => {
             title: 'Tågväxlare',
             company: 'Green Cargo',
             location: 'Hallsberg',
-            url: 'https://example.com/job/1',
+            canonicalUrl: 'https://example.com/job/1',
             description: 'Arbete som växlare på rangeringsbangård.',
             applicationDeadline: null,
             discoveredAt: '2026-01-01T00:00:00.000Z',
             lastSeenAt: '2026-01-01T00:00:00.000Z',
             aiCategory: null,
             availability: 'active',
-            sources: [],
+            links: [],
         };
 
         const mockFetch = mock.fn(async () => {
@@ -55,14 +55,14 @@ describe('evaluateJobWithGemini', () => {
             title: 'Truck driver',
             company: null,
             location: null,
-            url: 'https://example.com/job/2',
+            canonicalUrl: 'https://example.com/job/2',
             description: null,
             applicationDeadline: null,
             discoveredAt: '2026-01-01T00:00:00.000Z',
             lastSeenAt: '2026-01-01T00:00:00.000Z',
             aiCategory: null,
             availability: 'active',
-            sources: [],
+            links: [],
         };
         global.fetch = mock.fn(async () => new Response(
             JSON.stringify({
@@ -87,14 +87,14 @@ describe('evaluateJobWithGemini', () => {
             title: 'Unknown job',
             company: null,
             location: null,
-            url: 'https://example.com/job/3',
+            canonicalUrl: 'https://example.com/job/3',
             description: null,
             applicationDeadline: null,
             discoveredAt: '2026-01-01T00:00:00.000Z',
             lastSeenAt: '2026-01-01T00:00:00.000Z',
             aiCategory: null,
             availability: 'active',
-            sources: [],
+            links: [],
         };
         global.fetch = mock.fn(async () => new Response(
             JSON.stringify({

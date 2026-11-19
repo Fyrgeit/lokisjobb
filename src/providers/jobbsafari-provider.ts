@@ -66,15 +66,25 @@ function toJob(result: JobbsafariResult, sourceUrl: string): ScrapedJob | null {
         return null;
     }
 
+    const listingUrl = new URL(
+        `/lediga-jobb/${result.slug}`,
+        sourceUrl,
+    ).toString();
     return {
         title: result.title,
         company: cleanText(result.company?.name),
         location: cleanText(result.locations?.[0]?.name),
-        url: new URL(`/lediga-jobb/${result.slug}`, sourceUrl).toString(),
-        sourceUrl: new URL(`/lediga-jobb/${result.slug}`, sourceUrl).toString(),
+        listingUrl,
         description: getDescription(result.description),
         applicationDeadline: formatDeadline(result.endDate),
-        ...(result.apply?.href ? { url: result.apply.href } : {}),
+        ...(result.apply?.href
+            ? {
+                  applicationUrl: new URL(
+                      result.apply.href,
+                      listingUrl,
+                  ).toString(),
+              }
+            : {}),
     };
 }
 
@@ -112,7 +122,14 @@ function parseJobbsafariDetail(
             getDescription(detail.description) ?? existingJob.description,
         applicationDeadline:
             formatDeadline(detail.endDate) ?? existingJob.applicationDeadline,
-        ...(detail.apply?.href ? { url: detail.apply.href } : {}),
+        ...(detail.apply?.href
+            ? {
+                  applicationUrl: new URL(
+                      detail.apply.href,
+                      existingJob.listingUrl,
+                  ).toString(),
+              }
+            : {}),
     };
 }
 
@@ -145,8 +162,8 @@ export class JobbsafariProvider implements JobProvider {
         for (const job of jobs) {
             try {
                 // The apply URL may be mailto: or an external ATS link. The
-                // Jobbsafari detail page is always the sourceUrl.
-                const detailResponse = await this.fetchImpl(job.sourceUrl, {
+                // Jobbsafari detail page is always the listingUrl.
+                const detailResponse = await this.fetchImpl(job.listingUrl, {
                     headers: {
                         Accept: 'text/html',
                         'User-Agent':
@@ -169,7 +186,7 @@ export class JobbsafariProvider implements JobProvider {
                 const message =
                     error instanceof Error ? error.message : String(error);
                 console.warn(
-                    `Det gick inte att hämta jobbdetaljer från Jobbsafari (${job.url}): ${message}`,
+                    `Det gick inte att hämta jobbdetaljer från Jobbsafari (${job.listingUrl}): ${message}`,
                 );
             }
         }

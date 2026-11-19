@@ -9,8 +9,7 @@ const schema = `
     title TEXT NOT NULL,
     company TEXT,
     location TEXT,
-    url TEXT NOT NULL UNIQUE,
-    source_url TEXT NOT NULL,
+    canonical_url TEXT NOT NULL UNIQUE,
     description TEXT,
     application_deadline TEXT,
     discovered_at TEXT NOT NULL,
@@ -18,39 +17,41 @@ const schema = `
     ai_category TEXT
   );
 
-    CREATE TABLE IF NOT EXISTS job_sources (
+    CREATE TABLE IF NOT EXISTS job_links (
         job_id INTEGER NOT NULL,
-        source_name TEXT NOT NULL,
-        source_url TEXT NOT NULL,
+        provider_name TEXT NOT NULL,
+        link_url TEXT NOT NULL,
+        link_kind TEXT NOT NULL,
         first_seen_at TEXT NOT NULL,
         last_seen_at TEXT NOT NULL,
-        availability TEXT NOT NULL DEFAULT 'active',
-        checked_at TEXT NOT NULL DEFAULT '',
-        PRIMARY KEY (job_id, source_name, source_url),
+        availability TEXT,
+        checked_at TEXT,
+        PRIMARY KEY (job_id, provider_name, link_url, link_kind),
         FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
     );
 
-    CREATE INDEX IF NOT EXISTS idx_job_sources_url ON job_sources(source_url);
+    CREATE INDEX IF NOT EXISTS idx_job_links_url ON job_links(link_url);
 `;
 
 // Existing local databases may have been created before newer columns existed.
 // Keep startup backwards-compatible by adding only missing columns.
 function migrateJobsTable(database: Database.Database): void {
-    const columns = database.prepare('PRAGMA table_info(jobs)').all() as Array<{
+    let columns = database.prepare('PRAGMA table_info(jobs)').all() as Array<{
         name: string;
     }>;
 
-    if (!columns.some((column) => column.name === 'application_deadline')) {
-        database.exec('ALTER TABLE jobs ADD COLUMN application_deadline TEXT');
+    if (
+        columns.some((column) => column.name === 'url') &&
+        !columns.some((column) => column.name === 'canonical_url')
+    ) {
+        database.exec('ALTER TABLE jobs RENAME COLUMN url TO canonical_url');
+        columns = database.prepare('PRAGMA table_info(jobs)').all() as Array<{
+            name: string;
+        }>;
     }
 
-    if (!columns.some((column) => column.name === 'source_url')) {
-        // Existing rows used url for both purposes. Preserve that value as the
-        // source link until a later ingestion discovers a real apply URL.
-        database.exec(
-            "ALTER TABLE jobs ADD COLUMN source_url TEXT NOT NULL DEFAULT ''",
-        );
-        database.exec("UPDATE jobs SET source_url = url WHERE source_url = ''");
+    if (!columns.some((column) => column.name === 'application_deadline')) {
+        database.exec('ALTER TABLE jobs ADD COLUMN application_deadline TEXT');
     }
 
     if (!columns.some((column) => column.name === 'ai_category')) {
@@ -74,14 +75,16 @@ function migrateJobsTable(database: Database.Database): void {
     }
 
     // Canonicalize job URLs and merge duplicates
-    const jobs = database.prepare('SELECT id, url FROM jobs').all() as Array<{
+    const jobs = database
+        .prepare('SELECT id, canonical_url FROM jobs')
+        .all() as Array<{
         id: number;
-        url: string;
+        canonical_url: string;
     }>;
     for (const job of jobs) {
         let canonicalUrl: string;
         try {
-            canonicalUrl = canonicalizeApplicationUrl(job.url);
+            canonicalUrl = canonicalizeApplicationUrl(job.canonical_url);
         } catch (error: unknown) {
             if (!(error instanceof TypeError)) {
                 throw error;
@@ -92,18 +95,20 @@ function migrateJobsTable(database: Database.Database): void {
             continue;
         }
 
-        if (canonicalUrl !== job.url) {
+        if (canonicalUrl !== job.canonical_url) {
             const existing = database
-                .prepare('SELECT id FROM jobs WHERE url = ? AND id <> ?')
+                .prepare(
+                    'SELECT id FROM jobs WHERE canonical_url = ? AND id <> ?',
+                )
                 .get(canonicalUrl, job.id) as { id: number } | undefined;
             if (existing) {
                 database.transaction(() => {
                     database
                         .prepare(
                             `
-                            INSERT OR IGNORE INTO job_sources
-                            SELECT ?, source_name, source_url, first_seen_at, last_seen_at, availability, checked_at
-                            FROM job_sources WHERE job_id = ?
+                            INSERT OR IGNORE INTO job_links
+                            SELECT ?, provider_name, link_url, link_kind, first_seen_at, last_seen_at, availability, checked_at
+                            FROM job_links WHERE job_id = ?
                         `,
                         )
                         .run(existing.id, job.id);
@@ -113,27 +118,28 @@ function migrateJobsTable(database: Database.Database): void {
                 })();
             } else {
                 database
-                    .prepare('UPDATE jobs SET url = ? WHERE id = ?')
+                    .prepare('UPDATE jobs SET canonical_url = ? WHERE id = ?')
                     .run(canonicalUrl, job.id);
             }
         }
     }
 
-    // Merge any duplicate jobs that have the same URL or source_url
+    // Merge any duplicate jobs that have the same canonical URL.
     const urlDuplicateGroups = database
         .prepare(
             `
-        SELECT url, COUNT(*) as cnt FROM jobs GROUP BY url HAVING cnt > 1
+        SELECT canonical_url, COUNT(*) as cnt FROM jobs
+        GROUP BY canonical_url HAVING cnt > 1
     `,
         )
-        .all() as Array<{ url: string }>;
+        .all() as Array<{ canonical_url: string }>;
 
     for (const group of urlDuplicateGroups) {
         const rows = database
             .prepare(
-                'SELECT id FROM jobs WHERE url = ? ORDER BY discovered_at DESC',
+                'SELECT id FROM jobs WHERE canonical_url = ? ORDER BY discovered_at DESC',
             )
-            .all(group.url) as Array<{ id: number }>;
+            .all(group.canonical_url) as Array<{ id: number }>;
         if (rows.length > 1) {
             const keepId = rows[0].id;
             const duplicateIds = rows.slice(1).map((r) => r.id);
@@ -143,9 +149,9 @@ function migrateJobsTable(database: Database.Database): void {
                     database
                         .prepare(
                             `
-                        INSERT OR IGNORE INTO job_sources
-                        SELECT ?, source_name, source_url, first_seen_at, last_seen_at, availability, checked_at
-                        FROM job_sources WHERE job_id = ?
+                        INSERT OR IGNORE INTO job_links
+                        SELECT ?, provider_name, link_url, link_kind, first_seen_at, last_seen_at, availability, checked_at
+                        FROM job_links WHERE job_id = ?
                     `,
                         )
                         .run(keepId, dupId);
@@ -157,41 +163,44 @@ function migrateJobsTable(database: Database.Database): void {
         }
     }
 
-    const sourceDuplicateGroups = database
-        .prepare(
-            `
-        SELECT source_url, COUNT(*) as cnt FROM jobs WHERE source_url <> '' GROUP BY source_url HAVING cnt > 1
-    `,
-        )
-        .all() as Array<{ source_url: string }>;
-
-    for (const group of sourceDuplicateGroups) {
-        const rows = database
+    const sourceUrlColumnExists = columns.some(
+        (column) => column.name === 'source_url',
+    );
+    if (sourceUrlColumnExists) {
+        const sourceDuplicateGroups = database
             .prepare(
-                'SELECT id FROM jobs WHERE source_url = ? ORDER BY discovered_at DESC',
+                `SELECT source_url, COUNT(*) as cnt FROM jobs
+                 WHERE source_url <> '' GROUP BY source_url HAVING cnt > 1`,
             )
-            .all(group.source_url) as Array<{ id: number }>;
-        if (rows.length > 1) {
-            const keepId = rows[0].id;
-            const duplicateIds = rows.slice(1).map((r) => r.id);
+            .all() as Array<{ source_url: string }>;
 
-            database.transaction(() => {
-                for (const dupId of duplicateIds) {
-                    database
-                        .prepare(
-                            `
-                        INSERT OR IGNORE INTO job_sources
-                        SELECT ?, source_name, source_url, first_seen_at, last_seen_at, availability, checked_at
-                        FROM job_sources WHERE job_id = ?
-                    `,
-                        )
-                        .run(keepId, dupId);
-                    database
-                        .prepare('DELETE FROM jobs WHERE id = ?')
-                        .run(dupId);
-                }
-            })();
+        for (const group of sourceDuplicateGroups) {
+            const rows = database
+                .prepare(
+                    'SELECT id FROM jobs WHERE source_url = ? ORDER BY discovered_at DESC',
+                )
+                .all(group.source_url) as Array<{ id: number }>;
+            if (rows.length > 1) {
+                const keepId = rows[0].id;
+                const duplicateIds = rows.slice(1).map((r) => r.id);
+
+                database.transaction(() => {
+                    for (const dupId of duplicateIds) {
+                        database
+                            .prepare(
+                                `INSERT OR IGNORE INTO job_links
+                                 SELECT ?, provider_name, link_url, link_kind, first_seen_at, last_seen_at, availability, checked_at
+                                 FROM job_links WHERE job_id = ?`,
+                            )
+                            .run(keepId, dupId);
+                        database
+                            .prepare('DELETE FROM jobs WHERE id = ?')
+                            .run(dupId);
+                    }
+                })();
+            }
         }
+        database.exec('ALTER TABLE jobs DROP COLUMN source_url');
     }
 }
 
@@ -209,49 +218,79 @@ function inferSourceName(sourceUrl: string, jobId: number): string {
     }
 }
 
-function migrateJobSources(database: Database.Database): void {
-    const columns = database
-        .prepare('PRAGMA table_info(job_sources)')
-        .all() as Array<{ name: string }>;
-
-    if (!columns.some((column) => column.name === 'availability')) {
-        database.exec(
-            "ALTER TABLE job_sources ADD COLUMN availability TEXT NOT NULL DEFAULT 'active'",
-        );
-    }
-
-    if (!columns.some((column) => column.name === 'checked_at')) {
-        database.exec(
-            "ALTER TABLE job_sources ADD COLUMN checked_at TEXT NOT NULL DEFAULT ''",
-        );
-        database.exec('UPDATE job_sources SET checked_at = last_seen_at');
-    }
-
-    const legacyRows = database
+function migrateJobLinks(database: Database.Database): void {
+    const legacyTable = database
         .prepare(
-            "SELECT id, source_url, discovered_at, last_seen_at FROM jobs WHERE source_url <> ''",
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'job_sources'",
         )
-        .all() as Array<{
-        id: number;
-        source_url: string;
-        discovered_at: string;
-        last_seen_at: string;
-    }>;
-    const insertSource = database.prepare(
-        `INSERT OR IGNORE INTO job_sources
-         (job_id, source_name, source_url, first_seen_at, last_seen_at, availability, checked_at)
-         VALUES (?, ?, ?, ?, ?, 'active', ?)`,
-    );
+        .get();
+    if (legacyTable) {
+        const columns = database
+            .prepare('PRAGMA table_info(job_sources)')
+            .all() as Array<{ name: string }>;
+        const columnNames = new Set(columns.map((column) => column.name));
+        const availability = columnNames.has('availability')
+            ? 'availability'
+            : "'active'";
+        const checkedAt = columnNames.has('checked_at')
+            ? 'checked_at'
+            : 'last_seen_at';
 
-    for (const row of legacyRows) {
-        insertSource.run(
-            row.id,
-            inferSourceName(row.source_url, row.id),
-            row.source_url,
-            row.discovered_at,
-            row.last_seen_at,
-            row.last_seen_at,
+        database.exec(`
+            INSERT OR IGNORE INTO job_links
+                (job_id, provider_name, link_url, link_kind, first_seen_at,
+                 last_seen_at, availability, checked_at)
+            SELECT job_id, source_name, source_url, 'listing', first_seen_at,
+                   last_seen_at, ${availability}, ${checkedAt}
+            FROM job_sources
+        `);
+    }
+
+    const jobColumns = database
+        .prepare('PRAGMA table_info(jobs)')
+        .all() as Array<{ name: string }>;
+    if (jobColumns.some((column) => column.name === 'source_url')) {
+        const legacyRows = database
+            .prepare(
+                "SELECT id, source_url, discovered_at, last_seen_at FROM jobs WHERE source_url <> ''",
+            )
+            .all() as Array<{
+            id: number;
+            source_url: string;
+            discovered_at: string;
+            last_seen_at: string;
+        }>;
+        const insertLink = database.prepare(
+            `INSERT OR IGNORE INTO job_links
+             (job_id, provider_name, link_url, link_kind, first_seen_at,
+              last_seen_at, availability, checked_at)
+             VALUES (?, ?, ?, 'listing', ?, ?, 'active', ?)`,
         );
+
+        for (const row of legacyRows) {
+            const existingListing = database
+                .prepare(
+                    `SELECT 1 FROM job_links
+                     WHERE job_id = ? AND link_url = ? AND link_kind = 'listing'`,
+                )
+                .get(row.id, row.source_url);
+            if (existingListing) {
+                continue;
+            }
+
+            insertLink.run(
+                row.id,
+                inferSourceName(row.source_url, row.id),
+                row.source_url,
+                row.discovered_at,
+                row.last_seen_at,
+                row.last_seen_at,
+            );
+        }
+    }
+
+    if (legacyTable) {
+        database.exec('DROP TABLE job_sources');
     }
 }
 
@@ -265,12 +304,11 @@ export function createDatabase(databasePath: string): Database.Database {
 
     const database = new Database(databasePath);
     try {
-        // This is harmless today, but keeps the database ready for relationships
-        // if related tables are introduced later.
+        // Link rows depend on their owning job rows.
         database.pragma('foreign_keys = ON');
         database.exec(schema);
+        migrateJobLinks(database);
         migrateJobsTable(database);
-        migrateJobSources(database);
         return database;
     } catch (error: unknown) {
         database.close();

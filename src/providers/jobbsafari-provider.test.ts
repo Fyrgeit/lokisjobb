@@ -31,8 +31,7 @@ describe('parseJobbsafariJobs', () => {
                 title: 'Lokförare',
                 company: 'Ren Labs Stockholm AB',
                 location: 'Stockholm',
-                url: 'https://jobbsafari.se/lediga-jobb/lokforare-20541239',
-                sourceUrl:
+                listingUrl:
                     'https://jobbsafari.se/lediga-jobb/lokforare-20541239',
                 description: null,
                 applicationDeadline: '2026-10-02',
@@ -56,6 +55,27 @@ describe('parseJobbsafariJobs', () => {
         );
 
         assert.equal(jobs[0]?.applicationDeadline, null);
+    });
+
+    it('resolves application destinations relative to the listing page', () => {
+        const jobs = parseJobbsafariJobs(
+            pageData({
+                props: {
+                    pageProps: {
+                        jobEntries: {
+                            results: [
+                                { ...result, apply: { href: '/apply/123' } },
+                            ],
+                        },
+                    },
+                },
+            }),
+        );
+
+        assert.equal(
+            jobs[0]?.applicationUrl,
+            'https://jobbsafari.se/apply/123',
+        );
     });
 });
 

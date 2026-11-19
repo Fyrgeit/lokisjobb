@@ -9,7 +9,7 @@ const categoryCheckboxes = document.querySelectorAll(
     'input[name="categoryFilter"]',
 );
 const availabilityFilter = document.getElementById('availabilityFilter');
-const sourceFilter = document.getElementById('sourceFilter');
+const providerFilter = document.getElementById('providerFilter');
 const sortSelect = document.getElementById('sortSelect');
 const outputEl = document.getElementById('output');
 const refreshButton = document.getElementById('refreshButton');
@@ -51,7 +51,7 @@ async function fetchJobs() {
         }
         if (json.jobs) {
             allJobs = json.jobs;
-            populateSources();
+            populateProviders();
             updateDashboard();
         } else if (json.error) {
             outputEl.innerHTML = `<div class="col-span-full p-4 bg-red-50 text-red-700 rounded-lg">Fel: ${json.error}</div>`;
@@ -61,23 +61,25 @@ async function fetchJobs() {
     }
 }
 
-function populateSources() {
-    const sourcesSet = new Set();
+function populateProviders() {
+    const providersSet = new Set();
     allJobs.forEach((job) => {
-        if (job.sources) {
-            job.sources.forEach((s) => sourcesSet.add(s.name));
+        if (job.links) {
+            job.links
+                .filter((link) => link.kind === 'listing')
+                .forEach((link) => providersSet.add(link.provider));
         }
     });
 
-    const currentSource = sourceFilter.value;
-    sourceFilter.innerHTML = '<option value="">Alla källor</option>';
-    sourcesSet.forEach((source) => {
+    const currentProvider = providerFilter.value;
+    providerFilter.innerHTML = '<option value="">Alla leverantörer</option>';
+    providersSet.forEach((provider) => {
         const opt = document.createElement('option');
-        opt.value = source;
-        opt.textContent = source;
-        sourceFilter.appendChild(opt);
+        opt.value = provider;
+        opt.textContent = provider;
+        providerFilter.appendChild(opt);
     });
-    sourceFilter.value = currentSource;
+    providerFilter.value = currentProvider;
 }
 
 function updateDashboard() {
@@ -96,7 +98,7 @@ function updateDashboard() {
         .filter((checkbox) => checkbox.checked)
         .map((checkbox) => checkbox.value);
     const availabilityVal = availabilityFilter.value;
-    const sourceVal = sourceFilter.value;
+    const providerVal = providerFilter.value;
     const sortVal = sortSelect.value;
 
     let filtered = allJobs.filter((job) => {
@@ -111,15 +113,20 @@ function updateDashboard() {
             selectedCategories.includes(job.aiCategory ?? 'Okänd');
         const matchesAvailability =
             !availabilityVal || job.availability === availabilityVal;
-        const matchesSource =
-            !sourceVal ||
-            (job.sources && job.sources.some((s) => s.name === sourceVal));
+        const matchesProvider =
+            !providerVal ||
+            (job.links &&
+                job.links.some(
+                    (link) =>
+                        link.kind === 'listing' &&
+                        link.provider === providerVal,
+                ));
 
         return (
             matchesQuery &&
             matchesCategory &&
             matchesAvailability &&
-            matchesSource
+            matchesProvider
         );
     });
 
@@ -207,12 +214,21 @@ function updateDashboard() {
             unknown: 'bg-slate-100 text-slate-600',
         };
 
-        const sourcesHtml =
-            job.sources && job.sources.length > 0
-                ? job.sources
+        const links = job.links ?? [];
+        const listingLink = links.find((link) => link.kind === 'listing');
+        const applicationLink = links.find(
+            (link) => link.kind === 'application',
+        );
+        const detailsUrl =
+            listingLink?.url ?? applicationLink?.url ?? job.canonicalUrl;
+        const actionUrl = applicationLink?.url ?? detailsUrl;
+        const actionLabel = applicationLink ? 'Ansök' : 'Visa annons';
+        const linksHtml =
+            links.length > 0
+                ? links
                       .map(
-                          (s) =>
-                              `<span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded">${s.name}</span>`,
+                          (link) =>
+                              `<a href="${link.url}" target="_blank" rel="noopener noreferrer" class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded hover:text-indigo-700">${link.kind === 'application' ? 'Ansök' : link.provider}</a>`,
                       )
                       .join(' ')
                 : '';
@@ -247,7 +263,7 @@ function updateDashboard() {
                     ${categoryBadge}
                     <div class="min-w-0 flex-1">
                         <h3 class="font-bold text-slate-900 truncate">
-                            <a href="${job.url}" target="_blank" class="hover:text-indigo-600 transition">${job.title}</a>
+                            <a href="${detailsUrl}" target="_blank" rel="noopener noreferrer" class="hover:text-indigo-600 transition">${job.title}</a>
                         </h3>
                         <p class="text-xs text-slate-500 truncate">
                             ${job.company || 'Okänt företag'} ${job.location ? `• ${job.location}` : ''}
@@ -257,10 +273,10 @@ function updateDashboard() {
 
                 <div class="flex items-center gap-4 text-xs text-slate-500 self-end sm:self-center">
                     <div class="flex flex-wrap gap-1">
-                        ${sourcesHtml}
+                        ${linksHtml}
                     </div>
-                    <a href="${job.url}" target="_blank" class="font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 whitespace-nowrap">
-                        Visa
+                    <a href="${actionUrl}" target="_blank" rel="noopener noreferrer" class="font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 whitespace-nowrap">
+                        ${actionLabel}
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
                     </a>
                 </div>
@@ -283,7 +299,7 @@ function updateDashboard() {
                     </div>
 
                     <h3 class="font-bold text-lg text-slate-900 mb-1 leading-snug">
-                        <a href="${job.url}" target="_blank" class="hover:text-indigo-600 transition">${job.title}</a>
+                        <a href="${detailsUrl}" target="_blank" rel="noopener noreferrer" class="hover:text-indigo-600 transition">${job.title}</a>
                     </h3>
 
                     <p class="text-sm font-medium text-slate-600 mb-3">
@@ -297,10 +313,10 @@ function updateDashboard() {
 
                 <div class="pt-4 border-t border-slate-100 flex items-center justify-between gap-2 mt-auto">
                     <div class="flex flex-wrap gap-1">
-                        ${sourcesHtml}
+                        ${linksHtml}
                     </div>
-                    <a href="${job.url}" target="_blank" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
-                        Visa jobb
+                    <a href="${actionUrl}" target="_blank" rel="noopener noreferrer" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+                        ${actionLabel}
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
                     </a>
                 </div>
@@ -340,7 +356,7 @@ categoryCheckboxes.forEach((checkbox) => {
     });
 });
 availabilityFilter.addEventListener('change', updateDashboard);
-sourceFilter.addEventListener('change', updateDashboard);
+providerFilter.addEventListener('change', updateDashboard);
 sortSelect.addEventListener('change', updateDashboard);
 refreshButton.addEventListener('click', fetchJobs);
 cardViewBtn.addEventListener('click', () => {

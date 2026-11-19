@@ -88,20 +88,22 @@ app.get('/api/database/stats', async (_req, res) => {
             const jobCountRow = db
                 .prepare('SELECT COUNT(*) as count FROM jobs')
                 .get() as { count: number };
-            const sourceCountRow = db
-                .prepare('SELECT COUNT(*) as count FROM job_sources')
+            const listingLinkCountRow = db
+                .prepare(
+                    "SELECT COUNT(*) as count FROM job_links WHERE link_kind = 'listing'",
+                )
                 .get() as { count: number };
 
-            const sourcesSummary = db
+            const providersSummary = db
                 .prepare(
-                    'SELECT source_name, COUNT(*) as count FROM job_sources GROUP BY source_name',
+                    "SELECT provider_name, COUNT(*) as count FROM job_links WHERE link_kind = 'listing' GROUP BY provider_name",
                 )
                 .all();
 
             return {
                 totalJobs: jobCountRow.count,
-                totalSourceRecords: sourceCountRow.count,
-                sourcesBreakdown: sourcesSummary,
+                totalListingLinks: listingLinkCountRow.count,
+                providersBreakdown: providersSummary,
                 databasePath: config.databasePath,
             };
         });
@@ -117,9 +119,9 @@ app.get('/api/database/stats', async (_req, res) => {
 // Database table inspector endpoint
 app.get('/api/database/tables/:tableName', async (req, res) => {
     const { tableName } = req.params;
-    if (tableName !== 'jobs' && tableName !== 'job_sources') {
+    if (tableName !== 'jobs' && tableName !== 'job_links') {
         res.status(400).json({
-            error: 'Ogiltigt tabellnamn. Tillåtna tabeller: jobs, job_sources',
+            error: 'Ogiltigt tabellnamn. Tillåtna tabeller: jobs, job_links',
         });
         return;
     }

@@ -155,15 +155,110 @@ it('preserves legacy jobs with invalid URLs and warns during migration', () => {
         database = createDatabase(databasePath);
 
         const job = database
-            .prepare('SELECT url FROM jobs WHERE id = 1')
-            .get() as { url: string };
-        assert.equal(job.url, 'not a URL');
+            .prepare('SELECT canonical_url FROM jobs WHERE id = 1')
+            .get() as { canonical_url: string };
+        assert.equal(job.canonical_url, 'not a URL');
         assert.deepEqual(warnings, [
-            'Skipping URL canonicalization for job #1: invalid URL',
             'Using legacy source name for job #1: invalid source URL',
+            'Skipping URL canonicalization for job #1: invalid URL',
         ]);
     } finally {
         console.warn = originalWarn;
+        database?.close();
+        fs.rmSync(directory, { recursive: true, force: true });
+    }
+});
+
+it('migrates source records into typed job links without losing their metadata', () => {
+    const directory = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'lokisjobb-links-migration-'),
+    );
+    const databasePath = path.join(directory, 'jobs.db');
+    let database: Database.Database | undefined;
+
+    try {
+        const legacyDatabase = new Database(databasePath);
+        legacyDatabase.exec(`
+            CREATE TABLE jobs (
+                id INTEGER PRIMARY KEY,
+                title TEXT NOT NULL,
+                company TEXT,
+                location TEXT,
+                url TEXT NOT NULL UNIQUE,
+                source_url TEXT NOT NULL,
+                description TEXT,
+                application_deadline TEXT,
+                discovered_at TEXT NOT NULL,
+                last_seen_at TEXT NOT NULL,
+                ai_category TEXT
+            );
+            CREATE TABLE job_sources (
+                job_id INTEGER NOT NULL,
+                source_name TEXT NOT NULL,
+                source_url TEXT NOT NULL,
+                first_seen_at TEXT NOT NULL,
+                last_seen_at TEXT NOT NULL,
+                availability TEXT NOT NULL DEFAULT 'active',
+                checked_at TEXT NOT NULL DEFAULT '',
+                PRIMARY KEY (job_id, source_name, source_url)
+            );
+            INSERT INTO jobs
+                (id, title, url, source_url, discovered_at, last_seen_at)
+            VALUES
+                (1, 'Rail driver', 'https://apply.example/job/1',
+                 'https://board.example/job/1', '2026-01-01', '2026-01-02');
+            INSERT INTO job_sources
+                (job_id, source_name, source_url, first_seen_at, last_seen_at,
+                 availability, checked_at)
+            VALUES
+                (1, 'legacy-provider', 'https://board.example/job/1',
+                 '2026-01-01', '2026-01-02', 'closed', '2026-01-02');
+        `);
+        legacyDatabase.close();
+
+        database = createDatabase(databasePath);
+        const links = database
+            .prepare(
+                'SELECT provider_name, link_url, link_kind, availability, checked_at FROM job_links ORDER BY link_url',
+            )
+            .all();
+
+        assert.deepEqual(
+            database
+                .prepare('SELECT canonical_url FROM jobs WHERE id = 1')
+                .get(),
+            { canonical_url: 'https://apply.example/job/1' },
+        );
+        assert.deepEqual(links, [
+            {
+                provider_name: 'legacy-provider',
+                link_url: 'https://board.example/job/1',
+                link_kind: 'listing',
+                availability: 'closed',
+                checked_at: '2026-01-02',
+            },
+        ]);
+        const jobColumns = database
+            .prepare('PRAGMA table_info(jobs)')
+            .all() as Array<{ name: string }>;
+        assert.equal(
+            jobColumns.some((column) => column.name === 'canonical_url'),
+            true,
+        );
+        assert.equal(jobColumns.some((column) => column.name === 'url'), false);
+        assert.equal(
+            jobColumns.some((column) => column.name === 'source_url'),
+            false,
+        );
+        assert.equal(
+            database
+                .prepare(
+                    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'job_sources'",
+                )
+                .get(),
+            undefined,
+        );
+    } finally {
         database?.close();
         fs.rmSync(directory, { recursive: true, force: true });
     }

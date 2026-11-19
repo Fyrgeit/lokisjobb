@@ -28,8 +28,8 @@ function formatJob(job: Job): string {
         `AI-kategori: ${job.aiCategory ?? 'Ej klassificerad'}`,
         `Upptäckt: ${job.discoveredAt}`,
         `Senast sedd: ${job.lastSeenAt}`,
-        `URL: ${job.url}`,
-        `Källor (${job.sources.length}): ${job.sources.map((source) => `${source.name} [${formatAvailability(source.availability)}] (${source.url})`).join(', ') || 'Inga'}`,
+        `Kanonisk URL: ${job.canonicalUrl}`,
+        `Jobblänkar (${job.links.length}): ${job.links.map((link) => `${link.kind === 'application' ? 'Ansökan' : 'Annons'} från ${link.provider}${link.availability ? ` [${formatAvailability(link.availability)}]` : ''} (${link.url})`).join(', ') || 'Inga'}`,
         `Beskrivning: ${formatDescription(job.description)}`,
     ].join('\n');
 }

@@ -1,5 +1,5 @@
 const statTotalJobs = document.getElementById('statTotalJobs');
-const statTotalSources = document.getElementById('statTotalSources');
+const statTotalListingLinks = document.getElementById('statTotalListingLinks');
 const statDbPath = document.getElementById('statDbPath');
 
 const runScraperBtn = document.getElementById('runScraperBtn');
@@ -104,7 +104,7 @@ async function fetchStats() {
         const data = await parseResponse(res);
         if (data.totalJobs !== undefined) {
             statTotalJobs.textContent = data.totalJobs;
-            statTotalSources.textContent = data.totalSourceRecords;
+            statTotalListingLinks.textContent = data.totalListingLinks;
             statDbPath.textContent = data.databasePath;
         }
     } catch (err) {
@@ -186,7 +186,7 @@ async function runEvaluator() {
 
 async function runAnalyzer() {
     runAnalyzerBtn.disabled = true;
-    runAnalyzerBtn.textContent = 'Analyserar källor...';
+    runAnalyzerBtn.textContent = 'Analyserar leverantörer...';
     appendLog('Analyserar överlapp mellan jobbportaler...');
 
     try {
@@ -196,15 +196,15 @@ async function runAnalyzer() {
             const r = data.report;
             appendLog(`=== Rapport: överlapp mellan jobbportaler ===`);
             appendLog(`Unika jobb totalt: ${r.totalUniqueJobs}`);
-            r.sources.forEach((s) => {
+            r.providers.forEach((s) => {
                 const tag = s.noExclusiveJobs ? ' [inga unika jobb]' : '';
                 appendLog(
-                    `• Källa: ${s.name} | Jobb totalt: ${s.totalJobs} (${s.coveragePercentage}%) | Unika jobb: ${s.exclusiveJobs}${tag}`,
+                    `• Leverantör: ${s.name} | Jobb totalt: ${s.totalJobs} (${s.coveragePercentage}%) | Unika jobb: ${s.exclusiveJobs}${tag}`,
                 );
             });
             if (r.minimalCovers.length > 0) {
                 appendLog(
-                    `Minsta kombination som täcker allt: [ ${r.minimalCovers[0].sources.join(', ')} ] -> ${r.minimalCovers[0].coveragePercentage}% täckning`,
+                    `Minsta kombination som täcker allt: [ ${r.minimalCovers[0].providers.join(', ')} ] -> ${r.minimalCovers[0].coveragePercentage}% täckning`,
                 );
             }
         } else {

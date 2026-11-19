@@ -9,13 +9,13 @@ function createJob(id: number, aiCategory: Job['aiCategory'] = null): Job {
         title: `Job ${id}`,
         company: null,
         location: null,
-        url: `https://example.com/jobs/${id}`,
+        canonicalUrl: `https://example.com/jobs/${id}`,
         description: null,
         applicationDeadline: null,
         discoveredAt: '2026-01-01T00:00:00.000Z',
         lastSeenAt: '2026-01-01T00:00:00.000Z',
         aiCategory,
-        sources: [],
+        links: [],
         availability: 'active',
     };
 }

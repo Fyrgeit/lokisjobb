@@ -9,14 +9,14 @@ export interface ProviderStats {
 }
 
 export interface ProviderCombinationResult {
-    sources: string[];
+    providers: string[];
     coversAll: boolean;
     coveragePercentage: number;
 }
 
 export interface RedundancyAnalysisReport {
     totalUniqueJobs: number;
-    sources: ProviderStats[];
+    providers: ProviderStats[];
     minimalCovers: ProviderCombinationResult[];
 }
 
@@ -30,49 +30,52 @@ export function analyzeProviderRedundancy(
     if (totalUniqueJobs === 0) {
         return {
             totalUniqueJobs: 0,
-            sources: [],
+            providers: [],
             minimalCovers: [],
         };
     }
 
-    // Collect all unique source/provider names
-    const sourceNamesSet = new Set<string>();
+    const providerNamesSet = new Set<string>();
     for (const job of validJobs) {
-        for (const source of job.sources) {
-            sourceNamesSet.add(source.name);
+        for (const link of job.links) {
+            if (link.kind === 'listing') {
+                providerNamesSet.add(link.provider);
+            }
         }
     }
-    const sourceNames = [...sourceNamesSet].sort();
+    const providerNames = [...providerNamesSet].sort();
 
-    // Calculate stats per provider/source
-    const sourceStatsMap = new Map<
+    const providerStatsMap = new Map<
         string,
         { total: number; exclusive: number }
     >();
-    for (const name of sourceNames) {
-        sourceStatsMap.set(name, { total: 0, exclusive: 0 });
+    for (const name of providerNames) {
+        providerStatsMap.set(name, { total: 0, exclusive: 0 });
     }
 
     for (const job of validJobs) {
-        const jobSourceNames = new Set(job.sources.map((s) => s.name));
+        const jobProviders = new Set(
+            job.links
+                .filter((link) => link.kind === 'listing')
+                .map((link) => link.provider),
+        );
 
-        for (const name of jobSourceNames) {
-            const stats = sourceStatsMap.get(name)!;
+        for (const name of jobProviders) {
+            const stats = providerStatsMap.get(name)!;
             stats.total += 1;
         }
 
-        // Exclusive if exactly 1 source name contributed to this job
-        if (jobSourceNames.size === 1) {
-            const [exclusiveName] = [...jobSourceNames];
-            const stats = sourceStatsMap.get(exclusiveName);
+        if (jobProviders.size === 1) {
+            const [exclusiveName] = [...jobProviders];
+            const stats = providerStatsMap.get(exclusiveName);
             if (stats) {
                 stats.exclusive += 1;
             }
         }
     }
 
-    const sources: ProviderStats[] = sourceNames.map((name) => {
-        const stats = sourceStatsMap.get(name)!;
+    const providers: ProviderStats[] = providerNames.map((name) => {
+        const stats = providerStatsMap.get(name)!;
         return {
             name,
             totalJobs: stats.total,
@@ -84,12 +87,10 @@ export function analyzeProviderRedundancy(
         };
     });
 
-    // Find minimal source combinations that achieve 100% (or maximum possible) coverage
+    // Find minimal provider combinations that achieve full coverage.
     const minimalCovers: ProviderCombinationResult[] = [];
 
-    // Generate power set or test combinations (since number of sources is typically small, e.g. <= 10)
-    const combinations = getCombinations(sourceNames);
-    // Sort combinations by size ascending
+    const combinations = getCombinations(providerNames);
     combinations.sort((a, b) => a.length - b.length);
 
     let minSizeFound = Infinity;
@@ -100,8 +101,14 @@ export function analyzeProviderRedundancy(
 
         let coveredCount = 0;
         for (const job of validJobs) {
-            const jobSourceNames = new Set(job.sources.map((s) => s.name));
-            const isCovered = combo.some((src) => jobSourceNames.has(src));
+            const jobProviders = new Set(
+                job.links
+                    .filter((link) => link.kind === 'listing')
+                    .map((link) => link.provider),
+            );
+            const isCovered = combo.some((provider) =>
+                jobProviders.has(provider),
+            );
             if (isCovered) {
                 coveredCount += 1;
             }
@@ -115,7 +122,7 @@ export function analyzeProviderRedundancy(
         if (coversAll) {
             minSizeFound = combo.length;
             minimalCovers.push({
-                sources: combo,
+                providers: combo,
                 coversAll,
                 coveragePercentage,
             });
@@ -124,7 +131,7 @@ export function analyzeProviderRedundancy(
 
     return {
         totalUniqueJobs,
-        sources,
+        providers,
         minimalCovers,
     };
 }

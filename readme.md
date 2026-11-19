@@ -45,32 +45,32 @@ npm run dev
 
 ## Key Features
 
-1. **Deduplication & Provenance**: Jobs use canonical `url` as the primary deduplication key. The `job_sources` table tracks every source listing where a job appeared, recording first and latest sighting times. Known Jobylon URL variants are automatically normalized so syndicated listings converge without losing provenance.
-2. **Availability Tracking**: Each source connection tracks availability as `active`, `closed`, or `unknown`. A job is marked `closed` only when all known sources report it closed. Closed jobs are retained for historical analysis.
+1. **Deduplication & Provenance**: Jobs use a canonical URL as their deduplication key. The `job_links` table tracks provider listing URLs and application destinations separately, with sighting and availability metadata for listings. Known Jobylon URL variants are automatically normalized so syndicated listings converge without losing provenance.
+2. **Availability Tracking**: Each provider listing link tracks availability as `active`, `closed`, or `unknown`. A job is marked `closed` only when all known listings report it closed. Closed jobs are retained for historical analysis.
 3. **AI Classification (Gemini)**: Assigns each evaluated job one of `Persontåg`, `Godståg`, `Växlare`, `Intressant`, or `Ointressant`; unevaluated jobs remain `Okänd`. The classifier returns no rationale.
-4. **Source Redundancy Analysis**: Analyzes overlap, exclusive job coverage, and minimal source combinations needed for 100% market coverage.
+4. **Provider Redundancy Analysis**: Analyzes overlap, exclusive job coverage, and minimal provider combinations needed for 100% market coverage.
 5. **Web Interface & API**: Express backend serving a local frontend interface in `public/` for inspecting and viewing jobs.
 
 ## Architecture
 
 ```text
-JobSource.search(query)
+JobProvider.search(query)
         |
         v
-  ScrapedJob[]
+  ScrapedJob[] (listingUrl + optional applicationUrl)
         |
         v
   ingestion service (validation & normalization)
         |
         v
-  JobsRepository (SQLite persistence & deduplication)
+  JobsRepository (jobs + typed job_links)
         |
         +---> Analysis / Redundancy Analyzer
         +---> Gemini AI Evaluator
         +---> Express Web Server (/api/jobs)
 ```
 
-- `src/sources/`: Source-specific fetching, parsing, and normalization implementing `JobSource`.
+- `src/providers/`: Provider-specific fetching, parsing, and normalization implementing `JobProvider`.
 - `src/scraper/`: Ingestion service validating and storing scraped jobs into the repository.
 - `src/database/`: SQLite database initialization (`database.ts`) and repository (`jobs.ts`) handling persistence and deduplication.
 - `src/evaluator/`: Google Gemini AI job evaluation logic (`gemini-evaluator.ts`).
@@ -78,10 +78,10 @@ JobSource.search(query)
 - `src/server.ts`: Express API server powering the local web interface (`public/`).
 - `src/types/job.ts`: Normalized scraped and persisted job data types.
 
-## Adding a Job Source
+## Adding a Job Provider
 
-1. Create a new module in `src/sources/` implementing the `JobSource` interface.
-2. Fetch the source and map results to `ScrapedJob` objects.
-3. Register the new source in the ingestion pipeline (`src/index.ts`).
+1. Create a new module in `src/providers/` implementing the `JobProvider` interface.
+2. Fetch the provider and map results to `ScrapedJob` objects with distinct listing and application URLs.
+3. Register the new provider in the ingestion pipeline (`src/index.ts`).
 
-Sources encapsulate all website-specific scraping/API logic and never directly import the database layer.
+Providers encapsulate all website-specific scraping/API logic and never directly import the database layer.

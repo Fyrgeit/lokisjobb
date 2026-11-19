@@ -1,6 +1,6 @@
 import type { JobsRepository } from '../database/jobs.js';
 import type { JobProvider } from '../providers/job-provider.js';
-import type { ScrapedJob } from '../types/job.js';
+import type { IngestedJob, ScrapedJob } from '../types/job.js';
 
 export interface IngestionSummary {
     found: number;
@@ -22,15 +22,27 @@ function isIgnoredCompany(company: string | null): boolean {
 }
 
 function isValidJob(job: ScrapedJob): boolean {
-    // Reject malformed provider output before it reaches the repository. URL
-    // validation also prevents unusable links from entering the database.
-    if (!job.title.trim() || !job.url.trim()) {
+    if (!job.title.trim() || !isHttpUrl(job.listingUrl)) {
         return false;
     }
 
     try {
-        new URL(job.url);
-        return true;
+        if (job.applicationUrl) {
+            const applicationUrl = new URL(job.applicationUrl);
+            return (
+                ['http:', 'https:', 'mailto:'].includes(applicationUrl.protocol)
+            );
+        }
+    } catch {
+        return false;
+    }
+
+    return true;
+}
+
+function isHttpUrl(value: string): boolean {
+    try {
+        return ['http:', 'https:'].includes(new URL(value).protocol);
     } catch {
         return false;
     }
@@ -56,8 +68,7 @@ export function canonicalizeApplicationUrl(url: string): string {
     }
 
     // Jobylon exposes the same vacancy through both /jobs/{id}-... and
-    // /applications/jobs/{id}/create/. Collapse those forms so syndicated
-    // listings share one database identity while retaining sourceUrl.
+    // /applications/jobs/{id}/create/. Collapse those forms for deduplication.
     const jobylonMatch = parsedUrl
         .toString()
         .match(
@@ -95,18 +106,28 @@ export async function ingestFromSource(
             continue;
         }
 
-        // Trim the fields that are used for identity or display while keeping
-        // the source's optional values intact.
+        // Use the application destination as the identity when it is a web
+        // URL; otherwise use the provider's listing page.
+        const listingUrl = job.listingUrl.trim();
+        const applicationUrl = job.applicationUrl?.trim() || null;
+        const identityUrl =
+            applicationUrl && isHttpUrl(applicationUrl)
+                ? applicationUrl
+                : listingUrl;
         const normalizedJob: ScrapedJob = {
             ...job,
             title: job.title.trim(),
-            url: canonicalizeApplicationUrl(job.url.trim()),
-            sourceUrl: job.sourceUrl.trim(),
+            listingUrl,
+            applicationUrl,
+        };
+        const ingestedJob: IngestedJob = {
+            ...normalizedJob,
+            canonicalUrl: canonicalizeApplicationUrl(identityUrl),
         };
         console.log(
-            `[Hämtning] Bearbetar jobb: "${normalizedJob.title}" (url: ${normalizedJob.url}, källans url: ${normalizedJob.sourceUrl}) från ${provider.name}`,
+            `[Hämtning] Bearbetar jobb: "${ingestedJob.title}" (annons: ${ingestedJob.listingUrl}, ansökan: ${ingestedJob.applicationUrl ?? 'ej angiven'}) från ${provider.name}`,
         );
-        const result = repository.upsert(normalizedJob, provider.name);
+        const result = repository.upsert(ingestedJob, provider.name);
         summary[result === 'inserted' ? 'added' : 'updated'] += 1;
     }
 

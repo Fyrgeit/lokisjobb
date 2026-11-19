@@ -1,43 +1,23 @@
-# Terminology Refactor: Providers vs. Sources
+# Job Links and Provider Terminology
 
-## Overview
+The model distinguishes the service that finds a vacancy from the URLs
+associated with that vacancy:
 
-Currently, the codebase uses the term **"source"** ambiguously to mean two different things:
+- **Provider**: The API or website integration that searches for jobs
+  (`JobProvider`).
+- **Listing link**: The provider's page for the vacancy. Its availability and
+  first/last-seen timestamps are tracked per provider.
+- **Application link**: A destination for applying, which may be on Jobylon,
+  EasyApply, Visma, or another service. It does not determine listing
+  availability.
+- **Canonical URL**: The job's deduplication identity. Ingestion uses a web
+  application URL when available and otherwise falls back to the listing URL.
 
-1. The **scraping integration / job board API client** (e.g., `JobSource`, `ArbetsformedlingenSource`, `src/sources/`).
-2. The **origin URL / provenance record** where a job listing was discovered (e.g., `sourceUrl`, `job_sources` table, `job.sources`).
+Providers return `ScrapedJob` values with separate `listingUrl` and optional
+`applicationUrl` fields. The persisted `Job.links` array is backed by the
+normalized `job_links` table; listing and application links are distinguished
+by their `kind`. Provider coverage analysis uses listing links only.
 
-To eliminate confusion, we propose splitting the terminology cleanly:
-
-- **Provider**: The service, site, or API integration that fetches jobs (formerly `JobSource` -> `JobProvider`, `src/sources/` -> `src/providers/`).
-- **Source (or Source Link / Provenance)**: The specific URL and metadata record representing where a job was found (retaining terms like `sourceUrl`, `job_sources` table, and `JobSourceRecord` or renaming to `JobSourceLink`).
-
----
-
-## Proposed Nomenclature Changes
-
-| Current Term               | Proposed Term                         | Description                                                                                              |
-| -------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `JobSource`                | `JobProvider`                         | Interface for scraping/fetching jobs from a platform.                                                    |
-| `src/sources/`             | `src/providers/`                      | Directory containing provider implementations.                                                           |
-| `ArbetsformedlingenSource` | `ArbetsformedlingenProvider`          | Specific provider implementation.                                                                        |
-| `source_url`               | `sourceUrl` / `source_url`            | The URL of the job listing on the originating board (remains unchanged as it refers to the source link). |
-| `job_sources`              | `job_sources` (or `job_source_links`) | Database table tracking source provenance per job.                                                       |
-| `JobSourceRecord`          | `JobSourceLink`                       | Record representing a source reference on a job.                                                         |
-
----
-
-## Impact & Affected Areas
-
-1. **Types & Interfaces (`src/types/job.ts`)**:
-    - Rename `JobSourceRecord` to `JobSourceLink` (optional, or keep if source link is preferred).
-2. **Providers (`src/providers/`)**:
-    - Rename `src/sources` directory to `src/providers`.
-    - Update `JobSource` interface to `JobProvider`.
-    - Rename all concrete implementations (`ArbetsformedlingenProvider`, etc.).
-3. **Ingestion & Scraper (`src/scraper/ingestion.ts`)**:
-    - Update parameter types from `JobSource` to `JobProvider`.
-4. **Database (`src/database/jobs.ts`, `src/database/database.ts`)**:
-    - Keep columns and tables referencing `source_url` / `job_sources` as they represent the source links/provenance, or clarify via comments.
-5. **Analysis & CLI / Server (`src/analysis/`, `src/index.ts`, `src/server.ts`, `src/analyze-sources.ts`)**:
-    - Update imports and terminology from sources to providers where appropriate.
+The database migration renames the legacy `jobs.url` column to
+`jobs.canonical_url`, moves `jobs.source_url` and `job_sources` records into
+`job_links`, then removes the redundant legacy column and table.

@@ -1,4 +1,5 @@
 export type SourceAvailability = 'active' | 'closed' | 'unknown';
+export type JobLinkKind = 'listing' | 'application';
 export type AiCategory =
     | 'Persontåg'
     | 'Godståg'
@@ -6,35 +7,39 @@ export type AiCategory =
     | 'Intressant'
     | 'Ointressant';
 
-export interface JobSourceRecord {
-    name: string;
+export interface JobLink {
+    provider: string;
     url: string;
+    kind: JobLinkKind;
     firstSeenAt: string;
     lastSeenAt: string;
-    checkedAt: string;
-    availability: SourceAvailability;
+    checkedAt: string | null;
+    availability: SourceAvailability | null;
 }
 
-// This is the contract between any job source and the ingestion layer.
-// It contains source data only, with no SQLite-specific fields.
+// This is the contract between any job provider and the ingestion layer.
 export interface ScrapedJob {
     title: string;
     company: string | null;
     location: string | null;
-    url: string;
-    sourceUrl: string;
+    listingUrl: string;
+    applicationUrl?: string | null;
     description: string | null;
     applicationDeadline: string | null;
     availability?: SourceAvailability;
 }
 
-// Job is the database-backed form of ScrapedJob. The extra fields represent
-// local tracking and future evaluation, rather than information scraped from a site.
-export interface Job extends Omit<ScrapedJob, 'sourceUrl'> {
+export interface IngestedJob extends ScrapedJob {
+    canonicalUrl: string;
+}
+
+// Job is the database-backed form of a scraped job.
+export interface Job extends Omit<ScrapedJob, 'listingUrl' | 'applicationUrl' | 'availability'> {
     id: number;
+    canonicalUrl: string;
     discoveredAt: string;
     lastSeenAt: string;
     aiCategory: AiCategory | null;
-    sources: JobSourceRecord[];
+    links: JobLink[];
     availability: SourceAvailability;
 }

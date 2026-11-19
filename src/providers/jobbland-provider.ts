@@ -58,8 +58,7 @@ export function parseJobblandJobs(
                 title,
                 company,
                 location: cleanText(location),
-                url: new URL(href, sourceUrl).toString(),
-                sourceUrl: new URL(href, sourceUrl).toString(),
+                listingUrl: new URL(href, sourceUrl).toString(),
                 description: null,
                 applicationDeadline: null,
             });
@@ -112,7 +111,7 @@ export class JobblandProvider implements JobProvider {
         // and the authoritative deadline.
         for (const job of jobs) {
             try {
-                const detailResponse = await this.fetchImpl(job.url, {
+                const detailResponse = await this.fetchImpl(job.listingUrl, {
                     headers: {
                         Accept: 'text/html',
                         'User-Agent':
@@ -140,7 +139,7 @@ export class JobblandProvider implements JobProvider {
 
                 job.availability = await checkApplicationAvailability(
                     this.fetchImpl,
-                    job.url,
+                    job.listingUrl,
                 );
             } catch {
                 // Individual detail fetch failure should not drop the job card.

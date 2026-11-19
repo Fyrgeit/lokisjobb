@@ -52,8 +52,7 @@ export function parseJarnvagsjobbJobs(
             title,
             company: cleanText(row.find('td.list-column.company').text()),
             location: cleanText(row.find('td.list-column.city').text()),
-            url: new URL(href, sourceUrl).toString(),
-            sourceUrl: new URL(href, sourceUrl).toString(),
+            listingUrl: new URL(href, sourceUrl).toString(),
             description: null,
             applicationDeadline: cleanText(
                 row.find('td.list-column.apply_by').text(),
@@ -97,7 +96,7 @@ export class JarnvagsjobbProvider implements JobProvider {
         // so the scraper stays simple and does not create a burst of requests.
         for (const job of jobs) {
             try {
-                const detailResponse = await this.fetchImpl(job.url, {
+                const detailResponse = await this.fetchImpl(job.listingUrl, {
                     headers: {
                         Accept: 'text/html',
                         'User-Agent':
@@ -119,10 +118,13 @@ export class JarnvagsjobbProvider implements JobProvider {
                     '.single__vacancy-meta__cta a.button',
                 ).attr('href');
                 if (applyUrl) {
-                    job.url = new URL(applyUrl, job.sourceUrl).toString();
+                    job.applicationUrl = new URL(
+                        applyUrl,
+                        job.listingUrl,
+                    ).toString();
                     job.availability = await checkApplicationAvailability(
                         this.fetchImpl,
-                        job.url,
+                        job.applicationUrl,
                     );
                 } else {
                     job.availability = 'active';
@@ -131,7 +133,7 @@ export class JarnvagsjobbProvider implements JobProvider {
                 const message =
                     error instanceof Error ? error.message : String(error);
                 console.warn(
-                    `Det gick inte att hämta jobbdetaljer från ${job.url}: ${message}`,
+                    `Det gick inte att hämta jobbdetaljer från ${job.listingUrl}: ${message}`,
                 );
             }
         }

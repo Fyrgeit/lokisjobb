@@ -24,8 +24,7 @@ describe('parseJarnvagsjobbJobs', () => {
                 title: 'Lokförare – Sundsvall',
                 company: 'Green Cargo',
                 location: 'Sundsvall',
-                url: 'https://jarnvagsjobb.se/lediga-jobb/lokforare/',
-                sourceUrl: 'https://jarnvagsjobb.se/lediga-jobb/lokforare/',
+                listingUrl: 'https://jarnvagsjobb.se/lediga-jobb/lokforare/',
                 description: null,
                 applicationDeadline: '2026-09-20',
             },
@@ -102,11 +101,11 @@ describe('JarnvagsjobbProvider', () => {
             'Detta är den fullständiga annonsen.',
         );
         assert.equal(
-            jobs[0]?.url,
+            jobs[0]?.applicationUrl,
             'https://emp.jobylon.com/applications/jobs/380014/create/',
         );
         assert.equal(
-            jobs[0]?.sourceUrl,
+            jobs[0]?.listingUrl,
             'https://jarnvagsjobb.se/lediga-jobb/lokforare/',
         );
     });

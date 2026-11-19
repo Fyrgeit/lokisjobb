@@ -33,8 +33,7 @@ describe('parseJobblandJobs', () => {
                 title: 'Lokförare till LKAB',
                 company: 'LKAB',
                 location: 'Gällivare',
-                url: 'https://jobbland.se/jobb/lokforare-till-lkab',
-                sourceUrl: 'https://jobbland.se/jobb/lokforare-till-lkab',
+                listingUrl: 'https://jobbland.se/jobb/lokforare-till-lkab',
                 description: null,
                 applicationDeadline: null,
             },
@@ -67,7 +66,7 @@ describe('JobblandProvider', () => {
         assert.equal(jobs[0]?.description, 'Kör malmtåg i Gällivare.');
         assert.equal(jobs[0]?.applicationDeadline, '2026-09-27');
         assert.equal(
-            jobs[0]?.url,
+            jobs[0]?.listingUrl,
             'https://jobbland.se/jobb/lokforare-till-lkab',
         );
     });

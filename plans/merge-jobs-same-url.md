@@ -12,8 +12,8 @@ graph TD
     B --> C{Existing Job by URL?}
     C -- Yes --> D[Update Title, Description, Source URL, Last Seen At]
     C -- No --> E[Insert New Job Record]
-    D --> F[Record Source in job_sources]
-    E --> F[Record Source in job_sources]
+    D --> F[Record listing and application links in job_links]
+    E --> F[Record listing and application links in job_links]
 ```
 
 ## Actionable Steps
