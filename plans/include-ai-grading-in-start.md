@@ -1,5 +1,7 @@
 # Plan: Combined Scraper and AI Grading Pipeline
 
+**Status: Completed**
+
 ## Overview
 
 Permanently combine the job scraping ingestion task and the AI Gemini grading task into a single unified pipeline. This applies to both:

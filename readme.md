@@ -6,7 +6,6 @@ Lokisjobb is a robust local TypeScript foundation for finding, ingesting, analyz
 
 - **Järnvägsjobb**: Scrapes listings and detail pages from `jarnvagsjobb.se`.
 - **Arbetsförmedlingen**: Queries the public JobTech API behind Platsbanken.
-- **Jobbland**: Scrapes job cards and detail pages from `jobbland.se`.
 - **Jobbsafari**: Reads embedded search data and detail pages from `jobbsafari.se`.
 
 ## Prerequisites

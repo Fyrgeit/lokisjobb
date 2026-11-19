@@ -1,5 +1,7 @@
 # Plan: Sorting Enhancements (Time Found and Application Deadline)
 
+**Status: Completed**
+
 This plan outlines the enhancements to sort jobs by recency (time found / [`discoveredAt`](src/types/job.ts:1)) and last application date / deadline ([`applicationDeadline`](src/types/job.ts:1)).
 
 ## Overview of Changes

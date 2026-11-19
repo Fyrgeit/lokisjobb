@@ -1,5 +1,7 @@
 # Plan: Replace Rejected Status with Irrelevant
 
+**Status: Completed**
+
 This plan outlines the steps to replace the [`JobStatus`](src/types/job.ts:1) `'rejected'` with `'irrelevant'` when an AI evaluation score is 0.
 
 ## Overview of Changes

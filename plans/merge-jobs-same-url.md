@@ -1,5 +1,7 @@
 # Plan: Automatically Merge Jobs with Same URL and Different Titles
 
+**Status: Completed**
+
 ## Overview
 
 When multiple job providers index the same vacancy (identified by a canonical URL), they may report slightly different titles. Currently, [`src/database/jobs.ts`](src/database/jobs.ts:86) preserves the original title upon re-ingestion and does not update it. The goal is to ensure that jobs pointing to the same URL automatically merge and update their title (or incorporate multi-source updates) so that title variations across providers are correctly handled and merged into the canonical job record.

@@ -9,7 +9,6 @@ describe('createProviders', () => {
             [
                 'jarnvagsjobb.se',
                 'arbetsformedlingen.se',
-                'jobbland.se',
                 'jobbsafari.se',
             ],
         );

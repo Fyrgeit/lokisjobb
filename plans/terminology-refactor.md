@@ -1,5 +1,7 @@
 # Job Links and Provider Terminology
 
+**Status: Completed**
+
 The model distinguishes the service that finds a vacancy from the URLs
 associated with that vacancy:
 
