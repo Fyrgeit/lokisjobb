@@ -62,6 +62,16 @@ describe('parseJarnvagsjobbDescription', () => {
 });
 
 describe('JarnvagsjobbProvider', () => {
+    it('reports HTTP failures from the search request', async () => {
+        const fetchImpl: typeof fetch = async () =>
+            new Response('missing', { status: 503 });
+
+        await assert.rejects(
+            new JarnvagsjobbProvider(fetchImpl).search('lokförare'),
+            /Begäran till Järnvägsjobb misslyckades med HTTP 503/,
+        );
+    });
+
     it('fetches descriptions from each detail page', async () => {
         // Stub both HTTP responses so this test verifies the two-stage source
         // flow without depending on the live website.

@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { createDatabase } from './database/database.js';
+import { withDatabase } from './database/database.js';
 import { JobsRepository } from './database/jobs.js';
 import { analyzeProviderRedundancy } from './analysis/provider-redundancy.js';
 import { getConfig } from './config/config.js';
@@ -7,9 +7,7 @@ import { getConfig } from './config/config.js';
 async function main() {
     const config = getConfig();
     const dbPath = path.resolve(config.databasePath);
-    const db = createDatabase(dbPath);
-
-    try {
+    await withDatabase(dbPath, async (db) => {
         const repo = new JobsRepository(db);
         const jobs = repo.list();
         const report = analyzeProviderRedundancy(jobs);
@@ -36,9 +34,7 @@ async function main() {
                 );
             }
         }
-    } finally {
-        db.close();
-    }
+    });
 }
 
 main().catch((error) => {

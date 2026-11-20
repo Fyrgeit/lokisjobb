@@ -1,3 +1,5 @@
+import { escapeHtml, parseJsonResponse } from './api.js';
+
 let allJobs = [];
 let currentView = localStorage.getItem('lokisjobb_view') || 'card';
 const filtersStorageKey = 'lokisjobb_filters';
@@ -105,31 +107,16 @@ updateCategoryDropdownLabel();
 async function fetchJobs() {
     try {
         const response = await fetch('/api/jobs');
-        const text = await response.text();
-        let json;
-        try {
-            json = JSON.parse(text);
-        } catch (e) {
-            throw new Error(
-                `Servern returnerade ett ogiltigt svar (${response.status} ${response.statusText}): ${text.slice(0, 150)}`,
-            );
-        }
-        if (!response.ok) {
-            throw new Error(
-                json.error ||
-                    json.message ||
-                    `HTTP-fel ${response.status} ${response.statusText}`,
-            );
-        }
+        const json = await parseJsonResponse(response);
         if (json.jobs) {
             allJobs = json.jobs;
             populateProviders();
             updateDashboard();
         } else if (json.error) {
-            outputEl.innerHTML = `<div class="col-span-full p-4 bg-red-50 text-red-700 rounded-lg">Fel: ${json.error}</div>`;
+            outputEl.innerHTML = `<div class="col-span-full p-4 bg-red-50 text-red-700 rounded-lg">Fel: ${escapeHtml(json.error)}</div>`;
         }
     } catch (err) {
-        outputEl.innerHTML = `<div class="col-span-full p-4 bg-red-50 text-red-700 rounded-lg">Det gick inte att läsa in jobb: ${err.message}</div>`;
+        outputEl.innerHTML = `<div class="col-span-full p-4 bg-red-50 text-red-700 rounded-lg">Det gick inte att läsa in jobb: ${escapeHtml(err.message)}</div>`;
     }
 }
 
@@ -300,7 +287,7 @@ function updateDashboard() {
                 ? listingLinks
                       .map(
                           (link) =>
-                              `<a href="${link.url}" target="_blank" rel="noopener noreferrer" class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded hover:text-indigo-700">${link.provider}</a>`,
+                              `<a href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer" class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded hover:text-indigo-700">${escapeHtml(link.provider)}</a>`,
                       )
                       .join(' ')
                 : '';
@@ -314,7 +301,7 @@ function updateDashboard() {
             Okänd: 'bg-slate-100 text-slate-600 border border-slate-200',
         };
         const category = job.aiCategory ?? 'Okänd';
-        const categoryBadge = `<span class="px-2.5 py-1 ${categoryColors[category] || 'bg-slate-100 text-slate-700'} rounded-lg text-xs font-semibold">${category}</span>`;
+        const categoryBadge = `<span class="px-2.5 py-1 ${categoryColors[category] || 'bg-slate-100 text-slate-700'} rounded-lg text-xs font-semibold">${escapeHtml(category)}</span>`;
         const availabilityLabels = {
             active: 'Aktiv',
             closed: 'Stängd',
@@ -335,10 +322,10 @@ function updateDashboard() {
                     ${categoryBadge}
                     <div class="min-w-0 flex-1">
                         <h3 class="font-bold text-slate-900 truncate">
-                            ${job.title}
+                            ${escapeHtml(job.title)}
                         </h3>
                         <p class="text-xs text-slate-500 truncate">
-                            ${job.company || 'Okänt företag'} ${job.location ? `• ${job.location}` : ''}
+                            ${escapeHtml(job.company || 'Okänt företag')} ${job.location ? `• ${escapeHtml(job.location)}` : ''}
                         </p>
                     </div>
                 </div>
@@ -349,7 +336,7 @@ function updateDashboard() {
                     </div>
                     ${
                         applicationLink
-                            ? `<a href="${applicationLink.url}" target="_blank" rel="noopener noreferrer" class="font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 whitespace-nowrap">
+                            ? `<a href="${escapeHtml(applicationLink.url)}" target="_blank" rel="noopener noreferrer" class="font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 whitespace-nowrap">
                         Ansök
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
                     </a>`
@@ -375,16 +362,16 @@ function updateDashboard() {
                     </div>
 
                     <h3 class="font-bold text-lg text-slate-900 mb-1 leading-snug">
-                        ${job.title}
+                        ${escapeHtml(job.title)}
                     </h3>
 
                     <p class="text-sm font-medium text-slate-600 mb-3">
-                        ${job.company || 'Okänt företag'} ${job.location ? `• <span class="text-slate-500">${job.location}</span>` : ''}
+                        ${escapeHtml(job.company || 'Okänt företag')} ${job.location ? `• <span class="text-slate-500">${escapeHtml(job.location)}</span>` : ''}
                     </p>
 
                     <div class="mb-4">
                         <p data-job-description class="text-xs text-slate-500 line-clamp-1">
-                            ${job.description || 'Ingen beskrivning tillgänglig.'}
+                            ${escapeHtml(job.description || 'Ingen beskrivning tillgänglig.')}
                         </p>
                         ${
                             job.description
@@ -400,7 +387,7 @@ function updateDashboard() {
                     </div>
                     ${
                         applicationLink
-                            ? `<a href="${applicationLink.url}" target="_blank" rel="noopener noreferrer" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+                            ? `<a href="${escapeHtml(applicationLink.url)}" target="_blank" rel="noopener noreferrer" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
                         Ansök
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
                     </a>`

@@ -55,7 +55,7 @@ export function getJobs() {
             return { error: 'Inga jobb hittades. Kör npm run dev för att hämta jobbannonser.' };
         }
 
-        return { jobs: jobs };
+        return { jobs };
     } finally {
         database.close();
     }

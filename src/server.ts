@@ -2,31 +2,34 @@ import express from 'express';
 import path from 'node:path';
 import { getJobs } from './list-jobs.js';
 import { getConfig } from './config/config.js';
-import { createDatabase } from './database/database.js';
+import { withDatabase } from './database/database.js';
 import { JobsRepository } from './database/jobs.js';
-import type Database from 'better-sqlite3';
-import { evaluateUnevaluatedJobs } from './evaluator/job-evaluation.js';
+import {
+    runEvaluationWithHistory,
+} from './evaluator/job-evaluation.js';
 import { createProviders } from './providers/create-providers.js';
-import { runIngestion } from './scraper/run-ingestion.js';
+import {
+    runFetchWithHistory,
+} from './scraper/run-ingestion.js';
 import { analyzeProviderRedundancy } from './analysis/provider-redundancy.js';
 import {
     RunHistoryRepository,
-    withRunHistory,
 } from './database/run-history.js';
 
 const app = express();
 const PORT = 3000;
 
-async function withDatabase<T>(
-    databasePath: string,
-    operation: (database: Database.Database) => T | Promise<T>,
-): Promise<T> {
-    const database = createDatabase(databasePath);
-    try {
-        return await operation(database);
-    } finally {
-        database.close();
-    }
+
+function sendJsonError(
+    res: express.Response,
+    status: number,
+    error: unknown,
+    includeSuccess = false,
+): void {
+    res.status(status).json({
+        ...(includeSuccess ? { success: false } : {}),
+        error: error instanceof Error ? error.message : String(error),
+    });
 }
 
 app.use(express.json());
@@ -62,10 +65,11 @@ function createOpsLogStream(res: express.Response) {
 async function runScraperIngestion(
     searchQueries: string[],
     repository: JobsRepository,
+    history: RunHistoryRepository,
     log: (message: string) => void,
 ) {
-    let failedProviderQueries = 0;
-    const totals = await runIngestion(
+    return runFetchWithHistory(
+        history,
         searchQueries,
         createProviders(),
         repository,
@@ -78,14 +82,12 @@ async function runScraperIngestion(
                     `[${provider.name}] Hittade ${summary.found}, lade till ${summary.added}, uppdaterade ${summary.updated}`,
                 ),
             onProviderError: (provider, query, error) => {
-                failedProviderQueries += 1;
                 log(
                     `[${provider.name}] Misslyckades för sökningen "${query}": ${error instanceof Error ? error.message : error}`,
                 );
             },
         },
     );
-    return { totals, failedProviderQueries };
 }
 
 // Existing API endpoint for dashboard jobs
@@ -101,9 +103,7 @@ app.get('/api/ops/history', async (_req, res) => {
         );
         res.json({ entries });
     } catch (error: unknown) {
-        res.status(500).json({
-            error: error instanceof Error ? error.message : String(error),
-        });
+        sendJsonError(res, 500, error);
     }
 });
 
@@ -137,9 +137,7 @@ app.get('/api/database/stats', async (_req, res) => {
 
         res.json(stats);
     } catch (error: unknown) {
-        res.status(500).json({
-            error: error instanceof Error ? error.message : String(error),
-        });
+        sendJsonError(res, 500, error);
     }
 });
 
@@ -150,9 +148,11 @@ app.get('/api/database/tables/:tableName', async (req, res) => {
         tableName !== 'jobs' &&
         tableName !== 'job_links'
     ) {
-        res.status(400).json({
-            error: 'Ogiltigt tabellnamn. Tillåtna tabeller: jobs, job_links',
-        });
+        sendJsonError(
+            res,
+            400,
+            'Ogiltigt tabellnamn. Tillåtna tabeller: jobs, job_links',
+        );
         return;
     }
 
@@ -164,9 +164,7 @@ app.get('/api/database/tables/:tableName', async (req, res) => {
 
         res.json({ table: tableName, rows });
     } catch (error: unknown) {
-        res.status(500).json({
-            error: error instanceof Error ? error.message : String(error),
-        });
+        sendJsonError(res, 500, error);
     }
 });
 
@@ -195,9 +193,7 @@ app.delete('/api/database', async (_req, res) => {
 
         res.json(result);
     } catch (error: unknown) {
-        res.status(500).json({
-            error: error instanceof Error ? error.message : String(error),
-        });
+        sendJsonError(res, 500, error);
     }
 });
 
@@ -211,29 +207,11 @@ app.post('/api/ops/run-scraper', async (_req, res) => {
         const result = await withDatabase(config.databasePath, async (database) => {
             const repository = new JobsRepository(database);
             const history = new RunHistoryRepository(database);
-            const fetchResult = await withRunHistory(
+            const fetchResult = await runScraperIngestion(
+                config.searchQueries,
+                repository,
                 history,
-                'fetch',
-                () =>
-                    runScraperIngestion(
-                        config.searchQueries,
-                        repository,
-                        log,
-                    ),
-                (result) => ({
-                    status:
-                        result.failedProviderQueries > 0
-                            ? 'partial'
-                            : 'success',
-                    summary: {
-                        source: 'Alla källor',
-                        found: result.totals.found,
-                        added: result.totals.added,
-                        updated: result.totals.updated,
-                        skipped: result.totals.skipped,
-                        failed: result.failedProviderQueries,
-                    },
-                }),
+                log,
             );
             const totals = fetchResult.totals;
 
@@ -242,28 +220,12 @@ app.post('/api/ops/run-scraper', async (_req, res) => {
                 `Hittade totalt: ${totals.found}, tillagda: ${totals.added}, uppdaterade: ${totals.updated}`,
             );
             log(`\n--- AI-klassificering ---`);
-            const evaluation = await withRunHistory(
+            const evaluation = await runEvaluationWithHistory(
                 history,
-                'ai_classification',
-                () =>
-                    evaluateUnevaluatedJobs(
-                        repository,
-                        config.geminiApiKey,
-                        config.geminiModel,
-                        { log, error: log },
-                    ),
-                (result) => ({
-                    status: !config.geminiApiKey
-                        ? 'skipped'
-                        : result.failedCount > 0
-                          ? 'partial'
-                          : 'success',
-                    summary: {
-                        evaluated: result.evaluatedCount,
-                        failed: result.failedCount,
-                        remainingUnknown: result.remainingUnknownCount,
-                    },
-                }),
+                repository,
+                config.geminiApiKey,
+                config.geminiModel,
+                { log, error: log },
             );
             log(
                 `AI-klassificeringen är klar. Klassificerade: ${evaluation.evaluatedCount}, misslyckade: ${evaluation.failedCount}, återstående okategoriserade: ${evaluation.remainingUnknownCount}.`,
@@ -289,29 +251,11 @@ app.post('/api/ops/run-scraper-only', async (_req, res) => {
     try {
         const config = getConfig();
         const totals = await withDatabase(config.databasePath, (database) =>
-            withRunHistory(
+            runScraperIngestion(
+                config.searchQueries,
+                new JobsRepository(database),
                 new RunHistoryRepository(database),
-                'fetch',
-                () =>
-                    runScraperIngestion(
-                        config.searchQueries,
-                        new JobsRepository(database),
-                        log,
-                    ),
-                (result) => ({
-                    status:
-                        result.failedProviderQueries > 0
-                            ? 'partial'
-                            : 'success',
-                    summary: {
-                        source: 'Alla källor',
-                        found: result.totals.found,
-                        added: result.totals.added,
-                        updated: result.totals.updated,
-                        skipped: result.totals.skipped,
-                        failed: result.failedProviderQueries,
-                    },
-                }),
+                log,
             ),
         );
 
@@ -334,48 +278,32 @@ app.post('/api/ops/run-evaluator', async (_req, res) => {
         const config = getConfig();
         if (!config.geminiApiKey) {
             await withDatabase(config.databasePath, (database) =>
-                withRunHistory(
+                runEvaluationWithHistory(
                     new RunHistoryRepository(database),
-                    'ai_classification',
-                    async () => null,
-                    () => ({
-                        status: 'skipped',
-                        summary: {
-                            evaluated: 0,
-                            failed: 0,
-                            reason: 'GEMINI_API_KEY saknas',
-                        },
-                    }),
+                    new JobsRepository(database),
+                    null,
+                    config.geminiModel,
+                    { log: () => {}, error: () => {} },
                 ),
             );
-            res.status(400).json({
-                success: false,
-                error: 'Miljövariabeln GEMINI_API_KEY måste anges.',
-            });
+            sendJsonError(
+                res,
+                400,
+                'Miljövariabeln GEMINI_API_KEY måste anges.',
+                true,
+            );
             return;
         }
 
         stream = createOpsLogStream(res);
         const log = stream.log;
         const evaluation = await withDatabase(config.databasePath, (database) =>
-            withRunHistory(
+            runEvaluationWithHistory(
                 new RunHistoryRepository(database),
-                'ai_classification',
-                () =>
-                    evaluateUnevaluatedJobs(
-                        new JobsRepository(database),
-                        config.geminiApiKey,
-                        config.geminiModel,
-                        { log, error: log },
-                    ),
-                (result) => ({
-                    status: result.failedCount > 0 ? 'partial' : 'success',
-                    summary: {
-                        evaluated: result.evaluatedCount,
-                        failed: result.failedCount,
-                        remainingUnknown: result.remainingUnknownCount,
-                    },
-                }),
+                new JobsRepository(database),
+                config.geminiApiKey,
+                config.geminiModel,
+                { log, error: log },
             ),
         );
         log(
@@ -389,10 +317,7 @@ app.post('/api/ops/run-evaluator', async (_req, res) => {
         if (stream) {
             stream.fail(error);
         } else {
-            res.status(500).json({
-                success: false,
-                error: error instanceof Error ? error.message : String(error),
-            });
+            sendJsonError(res, 500, error, true);
         }
     }
 });
@@ -407,10 +332,7 @@ app.post('/api/ops/run-analyzer', async (_req, res) => {
 
         res.json({ success: true, report });
     } catch (error: unknown) {
-        res.status(500).json({
-            success: false,
-            error: error instanceof Error ? error.message : String(error),
-        });
+        sendJsonError(res, 500, error, true);
     }
 });
 

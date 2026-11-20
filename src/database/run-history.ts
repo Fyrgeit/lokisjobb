@@ -41,6 +41,65 @@ export interface RunCompletion {
     completedAt?: string;
 }
 
+function isCompletionStatus(
+    value: unknown,
+): value is RunCompletion['status'] {
+    return (
+        value === 'success' ||
+        value === 'partial' ||
+        value === 'failed' ||
+        value === 'skipped' ||
+        value === 'no_update'
+    );
+}
+
+export function parseRunCompletion(value: string): RunCompletion {
+    const parsed: unknown = JSON.parse(value);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        throw new Error('Completion data must be a JSON object.');
+    }
+
+    const record = parsed as Record<string, unknown>;
+    if (!isCompletionStatus(record.status)) {
+        throw new Error('Completion data has an invalid status.');
+    }
+    if (
+        typeof record.summary !== 'object' ||
+        record.summary === null ||
+        Array.isArray(record.summary)
+    ) {
+        throw new Error('Completion data must include a summary object.');
+    }
+
+    const summary: RunSummary = {};
+    for (const [key, item] of Object.entries(record.summary)) {
+        if (
+            item !== null &&
+            typeof item !== 'string' &&
+            typeof item !== 'number' &&
+            typeof item !== 'boolean'
+        ) {
+            throw new Error(`Summary field "${key}" must be a scalar value.`);
+        }
+        summary[key] = item;
+    }
+
+    if (
+        record.errorMessage !== undefined &&
+        typeof record.errorMessage !== 'string'
+    ) {
+        throw new Error('errorMessage must be a string when provided.');
+    }
+
+    return {
+        status: record.status,
+        summary,
+        ...(record.errorMessage === undefined
+            ? {}
+            : { errorMessage: record.errorMessage }),
+    };
+}
+
 export class RunHistoryRepository {
     public constructor(private readonly database: Database.Database) {}
 

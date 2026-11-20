@@ -45,6 +45,50 @@ type SourceRow = {
     checked_at: string | null;
 };
 
+export function transferJobLinks(
+    database: Database.Database,
+    keepId: number,
+    removeId: number,
+): void {
+    database
+        .prepare(
+            `INSERT INTO job_links
+             SELECT ?, provider_name, link_url, link_kind, first_seen_at,
+                    last_seen_at, availability, checked_at
+             FROM job_links WHERE job_id = ?
+             ON CONFLICT(job_id, provider_name, link_url, link_kind)
+             DO UPDATE SET
+                 first_seen_at = MIN(job_links.first_seen_at, excluded.first_seen_at),
+                 last_seen_at = MAX(job_links.last_seen_at, excluded.last_seen_at),
+                 availability = CASE
+                     WHEN excluded.checked_at IS NOT NULL
+                          AND (job_links.checked_at IS NULL
+                               OR excluded.checked_at > job_links.checked_at)
+                     THEN excluded.availability
+                     ELSE job_links.availability
+                 END,
+                 checked_at = CASE
+                     WHEN excluded.checked_at IS NOT NULL
+                          AND (job_links.checked_at IS NULL
+                               OR excluded.checked_at > job_links.checked_at)
+                     THEN excluded.checked_at
+                     ELSE job_links.checked_at
+                 END`,
+        )
+        .run(keepId, removeId);
+}
+
+export function mergeJobRows(
+    database: Database.Database,
+    keepId: number,
+    removeId: number,
+): void {
+    database.transaction(() => {
+        transferJobLinks(database, keepId, removeId);
+        database.prepare('DELETE FROM jobs WHERE id = ?').run(removeId);
+    })();
+}
+
 function deriveAvailability(
     links: JobLink[],
     applicationDeadline?: string | null,
@@ -145,7 +189,7 @@ export class JobsRepository {
         }
 
         if (canonicalJob && sourceJob && canonicalJob.id !== sourceJob.id) {
-            this.mergeJobs(canonicalJob.id, sourceJob.id);
+            mergeJobRows(this.database, canonicalJob.id, sourceJob.id);
             existing = canonicalJob;
         }
 
@@ -231,38 +275,6 @@ export class JobsRepository {
         }
 
         return 'inserted';
-    }
-
-    private mergeJobs(keepId: number, removeId: number): void {
-        this.database.transaction(() => {
-            this.database
-                .prepare(
-                    `INSERT INTO job_links
-                     SELECT ?, provider_name, link_url, link_kind, first_seen_at,
-                            last_seen_at, availability, checked_at
-                     FROM job_links WHERE job_id = ?
-                     ON CONFLICT(job_id, provider_name, link_url, link_kind)
-                     DO UPDATE SET
-                         first_seen_at = MIN(job_links.first_seen_at, excluded.first_seen_at),
-                         last_seen_at = MAX(job_links.last_seen_at, excluded.last_seen_at),
-                         availability = CASE
-                             WHEN excluded.checked_at IS NOT NULL
-                                  AND (job_links.checked_at IS NULL
-                                       OR excluded.checked_at > job_links.checked_at)
-                             THEN excluded.availability
-                             ELSE job_links.availability
-                         END,
-                         checked_at = CASE
-                             WHEN excluded.checked_at IS NOT NULL
-                                  AND (job_links.checked_at IS NULL
-                                       OR excluded.checked_at > job_links.checked_at)
-                             THEN excluded.checked_at
-                             ELSE job_links.checked_at
-                         END`,
-                )
-                .run(keepId, removeId);
-            this.database.prepare('DELETE FROM jobs WHERE id = ?').run(removeId);
-        })();
     }
 
     private recordLink(

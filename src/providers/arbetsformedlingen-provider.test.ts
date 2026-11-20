@@ -31,6 +31,16 @@ describe('mapArbetsformedlingenHit', () => {
 });
 
 describe('ArbetsformedlingenProvider', () => {
+    it('reports HTTP failures from the JobTech API request', async () => {
+        const fetchImpl: typeof fetch = async () =>
+            new Response('unavailable', { status: 502 });
+
+        await assert.rejects(
+            new ArbetsformedlingenProvider(fetchImpl).search('lokförare'),
+            /Begäran till Arbetsförmedlingen misslyckades med HTTP 502/,
+        );
+    });
+
     it('searches the public JobTech API', async () => {
         let requestedUrl = '';
         const fetchImpl: typeof fetch = async (input) => {

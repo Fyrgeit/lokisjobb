@@ -1,4 +1,9 @@
 import type { JobsRepository } from '../database/jobs.js';
+import {
+    RunHistoryRepository,
+    withRunHistory,
+    type RunCompletion,
+} from '../database/run-history.js';
 import { evaluateJobWithGemini } from './gemini-evaluator.js';
 
 type JobEvaluationRepository = Pick<
@@ -17,6 +22,68 @@ export interface JobEvaluationSummary {
     evaluatedCount: number;
     failedCount: number;
     remainingUnknownCount: number;
+}
+
+export function summarizeEvaluationRun(
+    result: JobEvaluationSummary,
+    apiKeyConfigured: boolean,
+): Omit<RunCompletion, 'durationMs' | 'completedAt'> {
+    return {
+        status: !apiKeyConfigured
+            ? 'skipped'
+            : result.failedCount > 0
+              ? 'partial'
+              : 'success',
+        summary: {
+            evaluated: result.evaluatedCount,
+            failed: result.failedCount,
+            remainingUnknown: result.remainingUnknownCount,
+            ...(!apiKeyConfigured
+                ? { reason: 'GEMINI_API_KEY saknas' }
+                : {}),
+        },
+    };
+}
+
+export async function runEvaluationWithHistory(
+    history: RunHistoryRepository,
+    repository: JobEvaluationRepository,
+    apiKey: string | null | undefined,
+    model: string,
+    logger: JobEvaluationLogger,
+    evaluate: typeof evaluateJobWithGemini = evaluateJobWithGemini,
+): Promise<JobEvaluationSummary> {
+    return withRunHistory(
+        history,
+        'ai_classification',
+        () => {
+            if (!apiKey) {
+                const jobs = repository.list();
+                logger.log(
+                    'Hoppar över AI-klassificeringen: GEMINI_API_KEY är inte konfigurerad.',
+                );
+                return Promise.resolve({
+                    totalCount: jobs.length,
+                    unevaluatedCount: jobs.filter(
+                        (job) => job.aiCategory === null,
+                    ).length,
+                    evaluatedCount: 0,
+                    failedCount: 0,
+                    remainingUnknownCount: jobs.filter(
+                        (job) => job.aiCategory === null,
+                    ).length,
+                });
+            }
+            return evaluateUnevaluatedJobs(
+                repository,
+                apiKey,
+                model,
+                logger,
+                evaluate,
+            );
+        },
+        (result) => summarizeEvaluationRun(result, Boolean(apiKey)),
+    );
 }
 
 export async function evaluateUnevaluatedJobs(

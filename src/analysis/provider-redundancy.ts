@@ -20,6 +20,14 @@ export interface RedundancyAnalysisReport {
     minimalCovers: ProviderCombinationResult[];
 }
 
+function listingProvidersForJob(job: Job): Set<string> {
+    return new Set(
+        job.links
+            .filter((link) => link.kind === 'listing')
+            .map((link) => link.provider),
+    );
+}
+
 export function analyzeProviderRedundancy(
     jobs: Job[],
 ): RedundancyAnalysisReport {
@@ -54,15 +62,13 @@ export function analyzeProviderRedundancy(
     }
 
     for (const job of validJobs) {
-        const jobProviders = new Set(
-            job.links
-                .filter((link) => link.kind === 'listing')
-                .map((link) => link.provider),
-        );
+        const jobProviders = listingProvidersForJob(job);
 
         for (const name of jobProviders) {
-            const stats = providerStatsMap.get(name)!;
-            stats.total += 1;
+            const stats = providerStatsMap.get(name);
+            if (stats) {
+                stats.total += 1;
+            }
         }
 
         if (jobProviders.size === 1) {
@@ -75,7 +81,10 @@ export function analyzeProviderRedundancy(
     }
 
     const providers: ProviderStats[] = providerNames.map((name) => {
-        const stats = providerStatsMap.get(name)!;
+        const stats = providerStatsMap.get(name);
+        if (!stats) {
+            throw new Error(`Missing redundancy stats for provider ${name}`);
+        }
         return {
             name,
             totalJobs: stats.total,
@@ -101,11 +110,7 @@ export function analyzeProviderRedundancy(
 
         let coveredCount = 0;
         for (const job of validJobs) {
-            const jobProviders = new Set(
-                job.links
-                    .filter((link) => link.kind === 'listing')
-                    .map((link) => link.provider),
-            );
+            const jobProviders = listingProvidersForJob(job);
             const isCovered = combo.some((provider) =>
                 jobProviders.has(provider),
             );

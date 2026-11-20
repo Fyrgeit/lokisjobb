@@ -6,6 +6,7 @@ import {
     stripTrackingParameters,
 } from '../scraper/ingestion.js';
 import { isLikelySamePosting } from './job-matching.js';
+import { mergeJobRows, transferJobLinks } from './jobs.js';
 
 const schema = `
   CREATE TABLE IF NOT EXISTS jobs (
@@ -84,6 +85,43 @@ function migrateRunHistory(database: Database.Database): void {
 
 function quoteIdentifier(identifier: string): string {
     return `"${identifier.replace(/"/g, '""')}"`;
+}
+
+function mergeDuplicateJobsByColumn(
+    database: Database.Database,
+    column: 'canonical_url' | 'source_url',
+): void {
+    const whereClause =
+        column === 'canonical_url'
+            ? `${quoteIdentifier(column)} IS NOT NULL`
+            : `${quoteIdentifier(column)} <> ''`;
+    const groups = database
+        .prepare(
+            `SELECT ${quoteIdentifier(column)}, COUNT(*) AS cnt
+             FROM jobs
+             WHERE ${whereClause}
+             GROUP BY ${quoteIdentifier(column)}
+             HAVING cnt > 1`,
+        )
+        .all() as Array<Record<typeof column, string>>;
+
+    for (const group of groups) {
+        const rows = database
+            .prepare(
+                `SELECT id FROM jobs
+                 WHERE ${quoteIdentifier(column)} = ?
+                 ORDER BY discovered_at DESC`,
+            )
+            .all(group[column]) as Array<{ id: number }>;
+        if (rows.length < 2) {
+            continue;
+        }
+
+        const keepId = rows[0].id;
+        for (const duplicate of rows.slice(1)) {
+            mergeJobRows(database, keepId, duplicate.id);
+        }
+    }
 }
 
 function makeCanonicalUrlNullable(database: Database.Database): void {
@@ -195,6 +233,20 @@ function migrateJobsTable(database: Database.Database): void {
         name: string;
     }>;
 
+    const addColumnIfMissing = (
+        columnName: string,
+        definition: string,
+    ): void => {
+        if (!columns.some((column) => column.name === columnName)) {
+            database.exec(
+                `ALTER TABLE jobs ADD COLUMN ${quoteIdentifier(columnName)} ${definition}`,
+            );
+            columns = database
+                .prepare('PRAGMA table_info(jobs)')
+                .all() as Array<{ name: string }>;
+        }
+    };
+
     if (
         columns.some((column) => column.name === 'url') &&
         !columns.some((column) => column.name === 'canonical_url')
@@ -205,13 +257,8 @@ function migrateJobsTable(database: Database.Database): void {
         }>;
     }
 
-    if (!columns.some((column) => column.name === 'application_deadline')) {
-        database.exec('ALTER TABLE jobs ADD COLUMN application_deadline TEXT');
-    }
-
-    if (!columns.some((column) => column.name === 'ai_category')) {
-        database.exec('ALTER TABLE jobs ADD COLUMN ai_category TEXT');
-    }
+    addColumnIfMissing('application_deadline', 'TEXT');
+    addColumnIfMissing('ai_category', 'TEXT');
 
     database.exec(`
         UPDATE jobs
@@ -292,20 +339,7 @@ function migrateJobsTable(database: Database.Database): void {
                 )
                 .get(canonicalUrl, job.id) as { id: number } | undefined;
             if (existing) {
-                database.transaction(() => {
-                    database
-                        .prepare(
-                            `
-                            INSERT OR IGNORE INTO job_links
-                            SELECT ?, provider_name, link_url, link_kind, first_seen_at, last_seen_at, availability, checked_at
-                            FROM job_links WHERE job_id = ?
-                        `,
-                        )
-                        .run(existing.id, job.id);
-                    database
-                        .prepare('DELETE FROM jobs WHERE id = ?')
-                        .run(job.id);
-                })();
+                mergeJobRows(database, existing.id, job.id);
             } else {
                 database
                     .prepare('UPDATE jobs SET canonical_url = ? WHERE id = ?')
@@ -315,82 +349,13 @@ function migrateJobsTable(database: Database.Database): void {
     }
 
     // Merge any duplicate jobs that have the same canonical URL.
-    const urlDuplicateGroups = database
-        .prepare(
-            `
-        SELECT canonical_url, COUNT(*) as cnt FROM jobs
-        WHERE canonical_url IS NOT NULL
-        GROUP BY canonical_url HAVING cnt > 1
-    `,
-        )
-        .all() as Array<{ canonical_url: string }>;
-
-    for (const group of urlDuplicateGroups) {
-        const rows = database
-            .prepare(
-                'SELECT id FROM jobs WHERE canonical_url = ? ORDER BY discovered_at DESC',
-            )
-            .all(group.canonical_url) as Array<{ id: number }>;
-        if (rows.length > 1) {
-            const keepId = rows[0].id;
-            const duplicateIds = rows.slice(1).map((r) => r.id);
-
-            database.transaction(() => {
-                for (const dupId of duplicateIds) {
-                    database
-                        .prepare(
-                            `
-                        INSERT OR IGNORE INTO job_links
-                        SELECT ?, provider_name, link_url, link_kind, first_seen_at, last_seen_at, availability, checked_at
-                        FROM job_links WHERE job_id = ?
-                    `,
-                        )
-                        .run(keepId, dupId);
-                    database
-                        .prepare('DELETE FROM jobs WHERE id = ?')
-                        .run(dupId);
-                }
-            })();
-        }
-    }
+    mergeDuplicateJobsByColumn(database, 'canonical_url');
 
     const sourceUrlColumnExists = columns.some(
         (column) => column.name === 'source_url',
     );
     if (sourceUrlColumnExists) {
-        const sourceDuplicateGroups = database
-            .prepare(
-                `SELECT source_url, COUNT(*) as cnt FROM jobs
-                 WHERE source_url <> '' GROUP BY source_url HAVING cnt > 1`,
-            )
-            .all() as Array<{ source_url: string }>;
-
-        for (const group of sourceDuplicateGroups) {
-            const rows = database
-                .prepare(
-                    'SELECT id FROM jobs WHERE source_url = ? ORDER BY discovered_at DESC',
-                )
-                .all(group.source_url) as Array<{ id: number }>;
-            if (rows.length > 1) {
-                const keepId = rows[0].id;
-                const duplicateIds = rows.slice(1).map((r) => r.id);
-
-                database.transaction(() => {
-                    for (const dupId of duplicateIds) {
-                        database
-                            .prepare(
-                                `INSERT OR IGNORE INTO job_links
-                                 SELECT ?, provider_name, link_url, link_kind, first_seen_at, last_seen_at, availability, checked_at
-                                 FROM job_links WHERE job_id = ?`,
-                            )
-                            .run(keepId, dupId);
-                        database
-                            .prepare('DELETE FROM jobs WHERE id = ?')
-                            .run(dupId);
-                    }
-                })();
-            }
-        }
+        mergeDuplicateJobsByColumn(database, 'source_url');
         database.exec('ALTER TABLE jobs DROP COLUMN source_url');
     }
 
@@ -452,14 +417,7 @@ function mergeLikelyDuplicateJobs(database: Database.Database): void {
 
         for (const duplicate of cluster.slice(1)) {
             database.transaction(() => {
-                database
-                    .prepare(
-                        `INSERT OR IGNORE INTO job_links
-                         SELECT ?, provider_name, link_url, link_kind,
-                                first_seen_at, last_seen_at, availability, checked_at
-                         FROM job_links WHERE job_id = ?`,
-                    )
-                    .run(keep.id, duplicate.id);
+                transferJobLinks(database, keep.id, duplicate.id);
                 database
                     .prepare(
                         `UPDATE jobs
@@ -504,6 +462,29 @@ function normalizeApplicationLinks(database: Database.Database): void {
         checked_at: string | null;
     }>;
 
+    const insertNormalizedLink = database.prepare(
+        `INSERT INTO job_links
+         (job_id, provider_name, link_url, link_kind, first_seen_at,
+          last_seen_at, availability, checked_at)
+         VALUES (?, ?, ?, 'application', ?, ?, ?, ?)
+         ON CONFLICT(job_id, provider_name, link_url, link_kind)
+         DO UPDATE SET
+             first_seen_at = MIN(job_links.first_seen_at, excluded.first_seen_at),
+             last_seen_at = MAX(job_links.last_seen_at, excluded.last_seen_at),
+             checked_at = CASE
+                 WHEN excluded.checked_at IS NOT NULL
+                      AND (job_links.checked_at IS NULL
+                           OR excluded.checked_at > job_links.checked_at)
+                 THEN excluded.checked_at
+                 ELSE job_links.checked_at
+             END`,
+    );
+    const deleteOriginalLink = database.prepare(
+        `DELETE FROM job_links
+         WHERE job_id = ? AND provider_name = ?
+           AND link_url = ? AND link_kind = 'application'`,
+    );
+
     for (const link of links) {
         let normalizedUrl: string;
         try {
@@ -523,40 +504,20 @@ function normalizeApplicationLinks(database: Database.Database): void {
         }
 
         database.transaction(() => {
-            database
-                .prepare(
-                    `INSERT INTO job_links
-                     (job_id, provider_name, link_url, link_kind, first_seen_at,
-                      last_seen_at, availability, checked_at)
-                     VALUES (?, ?, ?, 'application', ?, ?, ?, ?)
-                     ON CONFLICT(job_id, provider_name, link_url, link_kind)
-                     DO UPDATE SET
-                         first_seen_at = MIN(job_links.first_seen_at, excluded.first_seen_at),
-                         last_seen_at = MAX(job_links.last_seen_at, excluded.last_seen_at),
-                         checked_at = CASE
-                             WHEN excluded.checked_at IS NOT NULL
-                                  AND (job_links.checked_at IS NULL
-                                       OR excluded.checked_at > job_links.checked_at)
-                             THEN excluded.checked_at
-                             ELSE job_links.checked_at
-                         END`,
-                )
-                .run(
-                    link.job_id,
-                    link.provider_name,
-                    normalizedUrl,
-                    link.first_seen_at,
-                    link.last_seen_at,
-                    link.availability,
-                    link.checked_at,
-                );
-            database
-                .prepare(
-                    `DELETE FROM job_links
-                     WHERE job_id = ? AND provider_name = ?
-                       AND link_url = ? AND link_kind = 'application'`,
-                )
-                .run(link.job_id, link.provider_name, link.link_url);
+            insertNormalizedLink.run(
+                link.job_id,
+                link.provider_name,
+                normalizedUrl,
+                link.first_seen_at,
+                link.last_seen_at,
+                link.availability,
+                link.checked_at,
+            );
+            deleteOriginalLink.run(
+                link.job_id,
+                link.provider_name,
+                link.link_url,
+            );
         })();
     }
 }
@@ -672,5 +633,17 @@ export function createDatabase(databasePath: string): Database.Database {
     } catch (error: unknown) {
         database.close();
         throw error;
+    }
+}
+
+export async function withDatabase<T>(
+    databasePath: string,
+    operation: (database: Database.Database) => T | Promise<T>,
+): Promise<T> {
+    const database = createDatabase(databasePath);
+    try {
+        return await operation(database);
+    } finally {
+        database.close();
     }
 }

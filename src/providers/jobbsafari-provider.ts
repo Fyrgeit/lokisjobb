@@ -1,7 +1,15 @@
 import { load } from 'cheerio';
 import type { ScrapedJob } from '../types/job.js';
-import type { JobProvider } from './job-provider.js';
-import { availabilityFromResponse } from './availability.js';
+import {
+    cleanProviderText,
+    warnProviderDetailFailure,
+    type JobProvider,
+} from './job-provider.js';
+import {
+    availabilityFromResponse,
+    fetchProviderHtml,
+    providerFetchHeaders,
+} from './availability.js';
 
 export const jobbsafariSearchUrl = 'https://jobbsafari.se/lediga-jobb';
 
@@ -24,11 +32,6 @@ type JobbsafariPageData = {
         };
     };
 };
-
-function cleanText(value: string | undefined): string | null {
-    const text = value?.replace(/\s+/g, ' ').trim();
-    return text || null;
-}
 
 function extractPageData(html: string): JobbsafariPageData | null {
     const $ = load(html);
@@ -57,8 +60,8 @@ function formatDeadline(value: string | undefined): string | null {
 
 function getDescription(value: JobbsafariResult['description']): string | null {
     return typeof value === 'string'
-        ? cleanText(value)
-        : cleanText(value?.text);
+        ? cleanProviderText(value)
+        : cleanProviderText(value?.text);
 }
 
 function toJob(result: JobbsafariResult, sourceUrl: string): ScrapedJob | null {
@@ -72,8 +75,8 @@ function toJob(result: JobbsafariResult, sourceUrl: string): ScrapedJob | null {
     ).toString();
     return {
         title: result.title,
-        company: cleanText(result.company?.name),
-        location: cleanText(result.locations?.[0]?.name),
+        company: cleanProviderText(result.company?.name),
+        location: cleanProviderText(result.locations?.[0]?.name),
         listingUrl,
         description: getDescription(result.description),
         applicationDeadline: formatDeadline(result.endDate),
@@ -115,9 +118,11 @@ function parseJobbsafariDetail(
     return {
         ...existingJob,
         title: detail.title ?? existingJob.title,
-        company: cleanText(detail.company?.name) ?? existingJob.company,
+        company:
+            cleanProviderText(detail.company?.name) ?? existingJob.company,
         location:
-            cleanText(detail.locations?.[0]?.name) ?? existingJob.location,
+            cleanProviderText(detail.locations?.[0]?.name) ??
+            existingJob.location,
         description:
             getDescription(detail.description) ?? existingJob.description,
         applicationDeadline:
@@ -142,20 +147,12 @@ export class JobbsafariProvider implements JobProvider {
         const url = new URL(jobbsafariSearchUrl);
         url.searchParams.set('sok', query);
 
-        const response = await this.fetchImpl(url, {
-            headers: {
-                Accept: 'text/html',
-                'User-Agent': 'Lokisjobb/0.1 (local personal job search)',
-            },
-        });
-
-        if (!response.ok) {
-            throw new Error(
-                `Begäran till Jobbsafari misslyckades med HTTP ${response.status}`,
-            );
-        }
-
-        const jobs = parseJobbsafariJobs(await response.text(), url.toString());
+        const html = await fetchProviderHtml(
+            this.fetchImpl,
+            url,
+            'Jobbsafari',
+        );
+        const jobs = parseJobbsafariJobs(html, url.toString());
 
         // Search results contain summary data; detail pages provide the full
         // description and can also correct summary metadata.
@@ -164,11 +161,7 @@ export class JobbsafariProvider implements JobProvider {
                 // The apply URL may be mailto: or an external ATS link. The
                 // Jobbsafari detail page is always the listingUrl.
                 const detailResponse = await this.fetchImpl(job.listingUrl, {
-                    headers: {
-                        Accept: 'text/html',
-                        'User-Agent':
-                            'Lokisjobb/0.1 (local personal job search)',
-                    },
+                    headers: providerFetchHeaders(),
                 });
 
                 if (detailResponse.ok) {
@@ -183,10 +176,10 @@ export class JobbsafariProvider implements JobProvider {
                     );
                 }
             } catch (error: unknown) {
-                const message =
-                    error instanceof Error ? error.message : String(error);
-                console.warn(
-                    `Det gick inte att hämta jobbdetaljer från Jobbsafari (${job.listingUrl}): ${message}`,
+                warnProviderDetailFailure(
+                    'Jobbsafari',
+                    job.listingUrl,
+                    error,
                 );
             }
         }

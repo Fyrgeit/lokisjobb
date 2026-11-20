@@ -1,17 +1,18 @@
 import { load } from 'cheerio';
 import type { ScrapedJob } from '../types/job.js';
-import type { JobProvider } from './job-provider.js';
+import {
+    cleanProviderText,
+    warnProviderDetailFailure,
+    type JobProvider,
+} from './job-provider.js';
 import {
     availabilityFromResponse,
     checkApplicationAvailability,
+    fetchProviderHtml,
+    providerFetchHeaders,
 } from './availability.js';
 
 export const jobblandSearchBaseUrl = 'https://jobbland.se/lediga-jobb';
-
-function cleanText(value: string | undefined): string | null {
-    const text = value?.replace(/\s+/g, ' ').trim();
-    return text || null;
-}
 
 function parseDeadline(text: string): string | null {
     const match = text.match(/Slutdatum\s+(\d{4}-\d{2}-\d{2})/i);
@@ -38,15 +39,15 @@ export function parseJobblandJobs(
                 return;
             }
 
-            const title = cleanText(link.attr('title') ?? link.text());
+            const title = cleanProviderText(link.attr('title') ?? link.text());
             const href = link.attr('href');
 
             if (!title || !href) {
                 return;
             }
 
-            const cardText = cleanText(card.text()) ?? '';
-            const company = cleanText(link.attr('data-company'));
+            const cardText = cleanProviderText(card.text()) ?? '';
+            const company = cleanProviderText(link.attr('data-company'));
             const textAfterCompany = company
                 ? (cardText.split(company).pop() ?? cardText)
                 : cardText;
@@ -57,7 +58,7 @@ export function parseJobblandJobs(
             jobs.push({
                 title,
                 company,
-                location: cleanText(location),
+                location: cleanProviderText(location),
                 listingUrl: new URL(href, sourceUrl).toString(),
                 description: null,
                 applicationDeadline: null,
@@ -71,7 +72,8 @@ export function parseJobblandDescription(html: string): string | null {
     const $ = load(html);
     const heading = $('h2')
         .filter(
-            (_index, element) => cleanText($(element).text()) === 'Om jobbet',
+            (_index, element) =>
+                cleanProviderText($(element).text()) === 'Om jobbet',
         )
         .first();
 
@@ -79,7 +81,9 @@ export function parseJobblandDescription(html: string): string | null {
         return null;
     }
 
-    return cleanText(heading.parent().text()?.replace(heading.text(), ''));
+    return cleanProviderText(
+        heading.parent().text()?.replace(heading.text(), ''),
+    );
 }
 
 export class JobblandProvider implements JobProvider {
@@ -92,31 +96,19 @@ export class JobblandProvider implements JobProvider {
         const formattedQuery = query.replace(/,\s*/g, ';');
         url.searchParams.set('title', formattedQuery);
 
-        const response = await this.fetchImpl(url, {
-            headers: {
-                Accept: 'text/html',
-                'User-Agent': 'Lokisjobb/0.1 (local personal job search)',
-            },
-        });
-
-        if (!response.ok) {
-            throw new Error(
-                `Begäran till Jobbland misslyckades med HTTP ${response.status}`,
-            );
-        }
-
-        const jobs = parseJobblandJobs(await response.text(), url.toString());
+        const html = await fetchProviderHtml(
+            this.fetchImpl,
+            url,
+            'Jobbland',
+        );
+        const jobs = parseJobblandJobs(html, url.toString());
 
         // Search cards are summaries. Detail pages contain the full description
         // and the authoritative deadline.
         for (const job of jobs) {
             try {
                 const detailResponse = await this.fetchImpl(job.listingUrl, {
-                    headers: {
-                        Accept: 'text/html',
-                        'User-Agent':
-                            'Lokisjobb/0.1 (local personal job search)',
-                    },
+                    headers: providerFetchHeaders(),
                 });
 
                 if (!detailResponse.ok) {
@@ -141,8 +133,12 @@ export class JobblandProvider implements JobProvider {
                     this.fetchImpl,
                     job.listingUrl,
                 );
-            } catch {
-                // Individual detail fetch failure should not drop the job card.
+            } catch (error: unknown) {
+                warnProviderDetailFailure(
+                    'Jobbland',
+                    job.listingUrl,
+                    error,
+                );
             }
         }
 

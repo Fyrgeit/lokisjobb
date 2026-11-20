@@ -8,7 +8,32 @@ import { createDatabase } from './database.js';
 import {
     RunHistoryRepository,
     withRunHistory,
+    parseRunCompletion,
 } from './run-history.js';
+
+it('parses deployment completion JSON with scalar summaries', () => {
+    assert.deepEqual(
+        parseRunCompletion(
+            '{"status":"success","summary":{"buildStatus":"success","count":2,"changed":true},"errorMessage":"optional"}',
+        ),
+        {
+            status: 'success',
+            summary: {
+                buildStatus: 'success',
+                count: 2,
+                changed: true,
+            },
+            errorMessage: 'optional',
+        },
+    );
+    assert.throws(
+        () =>
+            parseRunCompletion(
+                '{"status":"success","summary":{"details":{"nested":true}}}',
+            ),
+        /Summary field "details" must be a scalar value/,
+    );
+});
 
 it('persists completed and failed runs in newest-first order', () => {
     const directory = fs.mkdtempSync(

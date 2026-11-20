@@ -1,3 +1,5 @@
+import { escapeHtml, parseJsonResponse } from './api.js';
+
 const statTotalJobs = document.getElementById('statTotalJobs');
 const statTotalListingLinks = document.getElementById('statTotalListingLinks');
 const statDbPath = document.getElementById('statDbPath');
@@ -28,23 +30,7 @@ clearLogsBtn.addEventListener('click', () => {
 });
 
 async function parseResponse(res) {
-    const text = await res.text();
-    let data;
-    try {
-        data = JSON.parse(text);
-    } catch (e) {
-        throw new Error(
-            `Servern returnerade ett ogiltigt svar (${res.status} ${res.statusText}): ${text.slice(0, 150)}`,
-        );
-    }
-    if (!res.ok) {
-        throw new Error(
-            data.error ||
-                data.message ||
-                `HTTP-fel ${res.status} ${res.statusText}`,
-        );
-    }
-    return data;
+    return parseJsonResponse(res);
 }
 
 async function consumeOperationStream(res) {
@@ -404,7 +390,7 @@ async function loadTableInspector() {
         const columns = Object.keys(rows[0]);
         inspectorTable.querySelector('thead').innerHTML = `
             <tr>
-                ${columns.map((c) => `<th class="p-3 border-b border-slate-700">${c}</th>`).join('')}
+                ${columns.map((c) => `<th class="p-3 border-b border-slate-700">${escapeHtml(c)}</th>`).join('')}
             </tr>
         `;
 
@@ -417,9 +403,9 @@ async function loadTableInspector() {
                         const val = row[c];
                         const displayVal =
                             val !== null && val !== undefined
-                                ? String(val)
+                                ? escapeHtml(val)
                                 : '<span class="text-slate-600">NULL</span>';
-                        return `<td class="p-3 truncate max-w-xs" title="${displayVal !== '<span class="text-slate-600">NULL</span>' ? displayVal.replace(/"/g, '"') : ''}">${displayVal}</td>`;
+                        return `<td class="p-3 truncate max-w-xs" title="${val !== null && val !== undefined ? escapeHtml(val) : ''}">${displayVal}</td>`;
                     })
                     .join('')}
             </tr>

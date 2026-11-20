@@ -1,33 +1,29 @@
 import path from 'node:path';
 import { getConfig } from './config/config.js';
-import { createDatabase } from './database/database.js';
+import { withDatabase } from './database/database.js';
 import { JobsRepository } from './database/jobs.js';
-import { evaluateUnevaluatedJobs } from './evaluator/job-evaluation.js';
+import {
+    runEvaluationWithHistory,
+} from './evaluator/job-evaluation.js';
 import {
     RunHistoryRepository,
-    withRunHistory,
 } from './database/run-history.js';
 
 async function main() {
     const config = getConfig();
-    const dbPath = path.resolve(config.databasePath);
-    const database = createDatabase(dbPath);
-
-    try {
+    await withDatabase(path.resolve(config.databasePath), async (database) => {
         const history = new RunHistoryRepository(database);
+        const repository = new JobsRepository(database);
         if (!config.geminiApiKey) {
-            await withRunHistory(
+            await runEvaluationWithHistory(
                 history,
-                'ai_classification',
-                async () => null,
-                () => ({
-                    status: 'skipped',
-                    summary: {
-                        evaluated: 0,
-                        failed: 0,
-                        reason: 'GEMINI_API_KEY saknas',
-                    },
-                }),
+                repository,
+                null,
+                config.geminiModel,
+                {
+                    log: (message) => console.log(message),
+                    error: (message) => console.error(message),
+                },
             );
             console.error(
                 'Fel: Miljövariabeln GEMINI_API_KEY måste anges för AI-klassificering.',
@@ -36,35 +32,21 @@ async function main() {
             return;
         }
 
-        const evaluation = await withRunHistory(
+        const evaluation = await runEvaluationWithHistory(
             history,
-            'ai_classification',
-            () =>
-                evaluateUnevaluatedJobs(
-                    new JobsRepository(database),
-                    config.geminiApiKey,
-                    config.geminiModel,
-                    {
-                        log: (message) => console.log(message),
-                        error: (message) => console.error(message),
-                    },
-                ),
-            (result) => ({
-                status: result.failedCount > 0 ? 'partial' : 'success',
-                summary: {
-                    evaluated: result.evaluatedCount,
-                    failed: result.failedCount,
-                    remainingUnknown: result.remainingUnknownCount,
-                },
-            }),
+            repository,
+            config.geminiApiKey,
+            config.geminiModel,
+            {
+                log: (message) => console.log(message),
+                error: (message) => console.error(message),
+            },
         );
 
         console.log(
             `Klassificeringen är klar. Klassificerade: ${evaluation.evaluatedCount}, misslyckades: ${evaluation.failedCount}.`,
         );
-    } finally {
-        database.close();
-    }
+    });
 }
 
 main().catch((error) => {

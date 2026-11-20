@@ -70,6 +70,34 @@ describe('JobblandProvider', () => {
             'https://jobbland.se/jobb/lokforare-till-lkab',
         );
     });
+
+    it('keeps search cards and warns when detail enrichment fails', async () => {
+        const fetchImpl: typeof fetch = async (input) => {
+            if (String(input).includes('/jobb/')) {
+                throw new Error('detail unavailable');
+            }
+            return new Response(listingHtml, { status: 200 });
+        };
+        const originalWarn = console.warn;
+        const warnings: string[] = [];
+
+        try {
+            console.warn = (message?: unknown) =>
+                warnings.push(String(message));
+            const jobs = await new JobblandProvider(fetchImpl).search(
+                'lokförare',
+            );
+
+            assert.equal(jobs.length, 1);
+            assert.equal(jobs[0]?.listingUrl,
+                'https://jobbland.se/jobb/lokforare-till-lkab');
+            assert.deepEqual(warnings, [
+                'Det gick inte att hämta jobbdetaljer från Jobbland (https://jobbland.se/jobb/lokforare-till-lkab): detail unavailable',
+            ]);
+        } finally {
+            console.warn = originalWarn;
+        }
+    });
 });
 
 describe('parseJobblandDescription', () => {

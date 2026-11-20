@@ -1,5 +1,46 @@
 import type { SourceAvailability } from '../types/job.js';
 
+export function providerFetchHeaders(
+    accept = 'text/html',
+): Record<string, string> {
+    return {
+        Accept: accept,
+        'User-Agent': 'Lokisjobb/0.1 (local personal job search)',
+    };
+}
+
+export async function fetchProviderHtml(
+    fetchImpl: typeof fetch,
+    url: URL,
+    providerLabel: string,
+): Promise<string> {
+    const response = await fetchImpl(url, {
+        headers: providerFetchHeaders(),
+    });
+    if (!response.ok) {
+        throw new Error(
+            `Begäran till ${providerLabel} misslyckades med HTTP ${response.status}`,
+        );
+    }
+    return response.text();
+}
+
+export async function fetchProviderJson(
+    fetchImpl: typeof fetch,
+    url: URL,
+    providerLabel: string,
+): Promise<unknown> {
+    const response = await fetchImpl(url, {
+        headers: providerFetchHeaders('application/json'),
+    });
+    if (!response.ok) {
+        throw new Error(
+            `Begäran till ${providerLabel} misslyckades med HTTP ${response.status}`,
+        );
+    }
+    return response.json();
+}
+
 const closedPagePattern =
     /does not exist|not found|no longer available|verkar inte finnas kvar|finns inte kvar|annonsen.*borttagen/i;
 
@@ -24,10 +65,7 @@ export async function checkApplicationAvailability(
 
     try {
         const response = await fetchImpl(url, {
-            headers: {
-                Accept: 'text/html',
-                'User-Agent': 'Lokisjobb/0.1 (local personal job search)',
-            },
+            headers: providerFetchHeaders(),
         });
         return availabilityFromResponse(response.status, await response.text());
     } catch {

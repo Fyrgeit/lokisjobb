@@ -1,20 +1,19 @@
 import { load } from 'cheerio';
 import type { ScrapedJob } from '../types/job.js';
-import type { JobProvider } from './job-provider.js';
+import {
+    cleanProviderText,
+    warnProviderDetailFailure,
+    type JobProvider,
+} from './job-provider.js';
 import {
     availabilityFromResponse,
     checkApplicationAvailability,
+    fetchProviderHtml,
+    providerFetchHeaders,
 } from './availability.js';
 
 export const jarnvagsjobbListingUrl =
     'https://jarnvagsjobb.se/jobba-inom-jarnvagen/lediga-jobb-inom-jarnvagsbranschen/';
-
-// Site HTML contains a lot of layout and WordPress-generated whitespace. A
-// single cleanup function keeps the normalized values predictable.
-function cleanText(value: string | undefined): string | null {
-    const text = value?.replace(/\s+/g, ' ').trim();
-    return text || null;
-}
 
 export function parseJarnvagsjobbDescription(html: string): string | null {
     const $ = load(html);
@@ -26,7 +25,7 @@ export function parseJarnvagsjobbDescription(html: string): string | null {
         .find('h1, .single__meta, script, style, .screen-reader-text')
         .remove();
 
-    return cleanText(content.text());
+    return cleanProviderText(content.text());
 }
 
 export function parseJarnvagsjobbJobs(
@@ -41,7 +40,7 @@ export function parseJarnvagsjobbJobs(
     $('table tbody tr').each((_index, element) => {
         const row = $(element);
         const titleLink = row.find('td.list-column.title a.row-link').first();
-        const title = cleanText(titleLink.text());
+        const title = cleanProviderText(titleLink.text());
         const href = titleLink.attr('href');
 
         if (!title || !href) {
@@ -50,11 +49,11 @@ export function parseJarnvagsjobbJobs(
 
         jobs.push({
             title,
-            company: cleanText(row.find('td.list-column.company').text()),
-            location: cleanText(row.find('td.list-column.city').text()),
+            company: cleanProviderText(row.find('td.list-column.company').text()),
+            location: cleanProviderText(row.find('td.list-column.city').text()),
             listingUrl: new URL(href, sourceUrl).toString(),
             description: null,
-            applicationDeadline: cleanText(
+            applicationDeadline: cleanProviderText(
                 row.find('td.list-column.apply_by').text(),
             ),
         });
@@ -74,34 +73,19 @@ export class JarnvagsjobbProvider implements JobProvider {
         const url = new URL(jarnvagsjobbListingUrl);
         url.searchParams.set('search', query);
 
-        const response = await this.fetchImpl(url, {
-            headers: {
-                Accept: 'text/html',
-                'User-Agent': 'Lokisjobb/0.1 (local personal job search)',
-            },
-        });
-
-        if (!response.ok) {
-            throw new Error(
-                `Begäran till Järnvägsjobb misslyckades med HTTP ${response.status}`,
-            );
-        }
-
-        const jobs = parseJarnvagsjobbJobs(
-            await response.text(),
-            url.toString(),
+        const html = await fetchProviderHtml(
+            this.fetchImpl,
+            url,
+            'Järnvägsjobb',
         );
+        const jobs = parseJarnvagsjobbJobs(html, url.toString());
 
         // The listing page has only summaries. Fetch detail pages one at a time
         // so the scraper stays simple and does not create a burst of requests.
         for (const job of jobs) {
             try {
                 const detailResponse = await this.fetchImpl(job.listingUrl, {
-                    headers: {
-                        Accept: 'text/html',
-                        'User-Agent':
-                            'Lokisjobb/0.1 (local personal job search)',
-                    },
+                    headers: providerFetchHeaders(),
                 });
 
                 if (!detailResponse.ok) {
@@ -130,10 +114,10 @@ export class JarnvagsjobbProvider implements JobProvider {
                     job.availability = 'active';
                 }
             } catch (error: unknown) {
-                const message =
-                    error instanceof Error ? error.message : String(error);
-                console.warn(
-                    `Det gick inte att hämta jobbdetaljer från ${job.listingUrl}: ${message}`,
+                warnProviderDetailFailure(
+                    'Järnvägsjobb',
+                    job.listingUrl,
+                    error,
                 );
             }
         }
