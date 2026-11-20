@@ -36,17 +36,51 @@ const schema = `
 
     CREATE INDEX IF NOT EXISTS idx_job_links_url ON job_links(link_url);
 
-    CREATE TABLE IF NOT EXISTS run_history (
+    ${runHistoryTableSchema('run_history')}
+`;
+
+function runHistoryTableSchema(tableName: string): string {
+    return `CREATE TABLE IF NOT EXISTS ${tableName} (
         id INTEGER PRIMARY KEY,
-        operation TEXT NOT NULL CHECK (operation IN ('fetch', 'ai_classification')),
+        operation TEXT NOT NULL CHECK (operation IN ('fetch', 'ai_classification', 'deployment')),
         started_at TEXT NOT NULL,
         completed_at TEXT,
         duration_ms INTEGER,
-        status TEXT NOT NULL CHECK (status IN ('running', 'success', 'partial', 'failed', 'skipped')),
+        status TEXT NOT NULL CHECK (status IN ('running', 'success', 'partial', 'failed', 'skipped', 'no_update')),
         summary_json TEXT NOT NULL DEFAULT '{}',
         error_message TEXT
-    );
-`;
+    )`;
+}
+
+function migrateRunHistory(database: Database.Database): void {
+    const table = database
+        .prepare(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'run_history'",
+        )
+        .get() as { sql: string } | undefined;
+
+    if (
+        table?.sql.includes("'deployment'") &&
+        table.sql.includes("'no_update'")
+    ) {
+        return;
+    }
+
+    database.transaction(() => {
+        database.exec(runHistoryTableSchema('run_history_new'));
+        database.exec(`
+            INSERT INTO run_history_new (
+                id, operation, started_at, completed_at, duration_ms,
+                status, summary_json, error_message
+            )
+            SELECT id, operation, started_at, completed_at, duration_ms,
+                   status, summary_json, error_message
+            FROM run_history
+        `);
+        database.exec('DROP TABLE run_history');
+        database.exec('ALTER TABLE run_history_new RENAME TO run_history');
+    })();
+}
 
 function quoteIdentifier(identifier: string): string {
     return `"${identifier.replace(/"/g, '""')}"`;
@@ -630,6 +664,7 @@ export function createDatabase(databasePath: string): Database.Database {
         // Link rows depend on their owning job rows.
         database.pragma('foreign_keys = ON');
         database.exec(schema);
+        migrateRunHistory(database);
         migrateJobLinks(database);
         migrateJobsTable(database);
         normalizeApplicationLinks(database);

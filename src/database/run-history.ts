@@ -1,12 +1,15 @@
 import type Database from 'better-sqlite3';
 
-export type RunOperation = 'fetch' | 'ai_classification';
+export type RunOperation = 'fetch' | 'ai_classification' | 'deployment';
 export type RunStatus =
     | 'running'
     | 'success'
     | 'partial'
     | 'failed'
-    | 'skipped';
+    | 'skipped'
+    | 'no_update';
+export type RunSummaryValue = string | number | boolean | null;
+export type RunSummary = Record<string, RunSummaryValue>;
 
 export interface RunHistoryEntry {
     id: number;
@@ -15,7 +18,7 @@ export interface RunHistoryEntry {
     completedAt: string | null;
     durationMs: number | null;
     status: RunStatus;
-    summary: Record<string, number | string>;
+    summary: RunSummary;
     errorMessage: string | null;
 }
 
@@ -32,8 +35,8 @@ interface RunHistoryRow {
 
 export interface RunCompletion {
     status: Exclude<RunStatus, 'running'>;
-    summary: Record<string, number | string>;
-    durationMs: number;
+    summary: RunSummary;
+    durationMs?: number;
     errorMessage?: string;
     completedAt?: string;
 }
@@ -55,6 +58,24 @@ export class RunHistoryRepository {
     }
 
     public complete(id: number, completion: RunCompletion): void {
+        const completedAt = completion.completedAt ?? new Date().toISOString();
+        let durationMs = completion.durationMs;
+        if (durationMs === undefined) {
+            const row = this.database
+                .prepare('SELECT started_at FROM run_history WHERE id = ?')
+                .get(id) as { started_at: string } | undefined;
+            if (!row) {
+                throw new Error(`Run history entry ${id} does not exist.`);
+            }
+
+            const startedAt = Date.parse(row.started_at);
+            const completedAtMs = Date.parse(completedAt);
+            if (!Number.isFinite(startedAt) || !Number.isFinite(completedAtMs)) {
+                throw new Error('Run history timestamps must be valid dates.');
+            }
+            durationMs = Math.max(0, completedAtMs - startedAt);
+        }
+
         this.database
             .prepare(
                 `UPDATE run_history
@@ -63,8 +84,8 @@ export class RunHistoryRepository {
                  WHERE id = ?`,
             )
             .run(
-                completion.completedAt ?? new Date().toISOString(),
-                completion.durationMs,
+                completedAt,
+                durationMs,
                 completion.status,
                 JSON.stringify(completion.summary),
                 completion.errorMessage ?? null,
@@ -94,10 +115,7 @@ export class RunHistoryRepository {
             completedAt: row.completed_at,
             durationMs: row.duration_ms,
             status: row.status,
-            summary: JSON.parse(row.summary_json) as Record<
-                string,
-                number | string
-            >,
+            summary: JSON.parse(row.summary_json) as RunSummary,
             errorMessage: row.error_message,
         }));
     }

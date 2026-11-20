@@ -6,14 +6,15 @@
     "scripts": {
         "dev": "tsx --env-file=.env src/index.ts",
         "jobs": "tsx --env-file=.env src/list-jobs.ts",
-        "build": "tsc",
+        "build": "npm run build:deployment-history && tsc",
         "start": "node --env-file=.env dist/index.js",
         "test": "tsx --test \"src/**/*.test.ts\"",
         "lint": "eslint .",
         "server": "tsx --env-file=.env src/server.ts",
         "server:watch": "tsx watch --env-file=.env src/server.ts",
         "analyze": "tsx --env-file=.env src/analyze-providers.ts",
-        "evaluate": "tsx --env-file=.env src/evaluate-jobs.ts"
+        "evaluate": "tsx --env-file=.env src/evaluate-jobs.ts",
+        "build:deployment-history": "tsc --project tsconfig.deployment-history.json"
     },
     "dependencies": {
         "better-sqlite3": "^12.4.1",

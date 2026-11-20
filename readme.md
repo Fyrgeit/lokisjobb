@@ -28,10 +28,25 @@ npm install
 - `npm run jobs`: Reads persisted jobs from SQLite and prints them as text.
 - `npm run evaluate`: Evaluates unevaluated jobs using Google Gemini (`GEMINI_API_KEY` required).
 - `npm run analyze`: Runs source redundancy and coverage analysis on persisted jobs.
+- `npm run build:deployment-history`: Builds the standalone deployment history CLI before the application build.
 - `npm test`: Runs test suites across the codebase.
 - `npm run build`: Compiles TypeScript files (`tsc`).
 - `npm start`: Runs the compiled production build.
 - `npm run lint`: Lints the codebase with ESLint.
+
+The deployment script can record an event using the standalone CLI, from the
+repository root and with the same environment/database path as the web server:
+
+```bash
+deployment_id=$(node --env-file=.env dist/deployment-history.js start)
+node --env-file=.env dist/deployment-history.js complete "$deployment_id" \
+  '{"status":"no_update","summary":{"reason":"No new commits"}}'
+```
+
+For a completed deployment, pass `success` or `failed` and include commit hashes,
+dependency changes, build status, and restart status in the summary. Include
+`errorMessage` for a failed operation. `npm run build` compiles this CLI before
+the main TypeScript build so it remains available if that build fails.
 
 On Windows PowerShell:
 
@@ -72,6 +87,8 @@ JobProvider.search(query)
 - `src/providers/`: Provider-specific fetching, parsing, and normalization implementing `JobProvider`.
 - `src/scraper/`: Ingestion service validating and storing scraped jobs into the repository.
 - `src/database/`: SQLite database initialization (`database.ts`) and repository (`jobs.ts`) handling persistence and deduplication.
+- `src/database/run-history.ts`: Shared repository for job-operation and deployment history.
+- `src/deployment-history.ts`: CLI for deployment scripts to start and complete history entries without duplicating database logic.
 - `src/evaluator/`: Google Gemini AI job evaluation logic (`gemini-evaluator.ts`).
 - `src/analysis/`: Source redundancy and coverage overlap algorithms (`source-redundancy.ts`).
 - `src/server.ts`: Express API server powering the local web interface (`public/`).

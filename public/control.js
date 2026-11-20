@@ -116,6 +116,43 @@ async function fetchStats() {
 
 function formatRunSummary(entry) {
     const summary = entry.summary || {};
+    if (entry.operation === 'deployment') {
+        if (entry.status === 'no_update') {
+            return 'Inga nya uppdateringar';
+        }
+        const details = [];
+        if (summary.previousCommit || summary.newCommit) {
+            const previous = summary.previousCommit
+                ? String(summary.previousCommit).slice(0, 7)
+                : 'okänd';
+            const current = summary.newCommit
+                ? String(summary.newCommit).slice(0, 7)
+                : 'okänd';
+            details.push(`${previous} → ${current}`);
+        }
+        if (summary.dependenciesChanged !== undefined) {
+            details.push(
+                `beroenden ${summary.dependenciesChanged ? 'ändrade' : 'oförändrade'}`,
+            );
+        }
+        const phaseLabels = {
+            success: 'lyckades',
+            failed: 'misslyckades',
+            partial: 'delvis',
+            skipped: 'överhoppades',
+        };
+        if (summary.buildStatus) {
+            details.push(
+                `bygge ${phaseLabels[summary.buildStatus] || summary.buildStatus}`,
+            );
+        }
+        if (summary.restartStatus) {
+            details.push(
+                `omstart ${phaseLabels[summary.restartStatus] || summary.restartStatus}`,
+            );
+        }
+        return details.join(', ') || 'Programvarudeployment';
+    }
     if (entry.operation === 'fetch') {
         const details = [
             `${summary.found ?? 0} hittade`,
@@ -148,7 +185,7 @@ function renderRunHistory(entries) {
     if (entries.length === 0) {
         const empty = document.createElement('li');
         empty.className = 'py-4 text-sm text-slate-500';
-        empty.textContent = 'Inga hämtningar eller AI-klassificeringar ännu.';
+        empty.textContent = 'Ingen körnings- eller deploymenthistorik ännu.';
         runHistoryList.append(empty);
         return;
     }
@@ -156,6 +193,7 @@ function renderRunHistory(entries) {
     const labels = {
         fetch: 'Hämtning',
         ai_classification: 'AI-klassificering',
+        deployment: 'Driftsättning',
     };
     const statusLabels = {
         running: 'Pågår',
@@ -163,6 +201,7 @@ function renderRunHistory(entries) {
         partial: 'Delvis',
         failed: 'Misslyckades',
         skipped: 'Överhoppad',
+        no_update: 'Ingen uppdatering',
     };
 
     for (const entry of [...entries].reverse()) {
@@ -201,7 +240,9 @@ function renderRunHistory(entries) {
         }
         const status = document.createElement('span');
         status.className =
-            entry.status === 'failed'
+            entry.status === 'no_update'
+                ? 'text-slate-400'
+                : entry.status === 'failed'
                 ? 'text-rose-400'
                 : entry.status === 'partial'
                   ? 'text-amber-400'
