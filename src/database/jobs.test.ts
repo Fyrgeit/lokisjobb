@@ -178,6 +178,93 @@ describe('JobsRepository.upsert', () => {
         );
     });
 
+    it('merges a listing with a matching location when an existing description is missing', () => {
+        const repository = createRepository();
+        const canonicalUrl = 'https://easyapply.jobs/r/rail-yard';
+        const title = 'Växlare/bangårdsoperatör till ProTrain i Göteborgs Hamn';
+        const company = 'ProTrain Bemanning AB';
+        const deadline = '2026-11-20';
+
+        repository.upsert(
+            {
+                ...scrapedJob,
+                title,
+                company,
+                location: 'Göteborg',
+                canonicalUrl,
+                listingUrl: 'https://arbetsformedlingen.se/platsbanken/annonser/1',
+                description: null,
+                applicationDeadline: deadline,
+            },
+            'arbetsformedlingen.se',
+        );
+        repository.upsert(
+            {
+                ...scrapedJob,
+                title,
+                company,
+                location: 'Göteborg',
+                canonicalUrl,
+                listingUrl:
+                    'https://jobbsafari.se/lediga-jobb/vaxlare-protrain',
+                description: null,
+                applicationDeadline: deadline,
+            },
+            'jobbsafari.se',
+        );
+        repository.upsert(
+            {
+                ...scrapedJob,
+                title,
+                company,
+                location: 'Göteborg',
+                canonicalUrl: null,
+                listingUrl: 'https://jobbland.se/jobb/vaxlare-protrain',
+                description:
+                    'ProTrain söker växlare till Göteborgs Hamn. '.repeat(5),
+                applicationDeadline: deadline,
+            },
+            'jobbland.se',
+        );
+
+        const jobs = repository.list();
+        assert.equal(jobs.length, 1);
+        assert.equal(jobs[0]?.canonicalUrl, canonicalUrl);
+        assert.ok(jobs[0]?.description);
+        assert.deepEqual(
+            jobs[0]?.links.map((link) => link.provider).sort(),
+            ['arbetsformedlingen.se', 'jobbland.se', 'jobbsafari.se'],
+        );
+    });
+
+    it('does not merge listings with missing descriptions when locations differ', () => {
+        const repository = createRepository();
+        const matchFields = {
+            ...scrapedJob,
+            title: 'Växlare/bangårdsoperatör till ProTrain i Göteborgs Hamn',
+            company: 'ProTrain Bemanning AB',
+            applicationDeadline: '2026-11-20',
+            canonicalUrl: null,
+            description: null,
+        };
+
+        repository.upsert(
+            { ...matchFields, location: 'Göteborg' },
+            'board-one.example',
+        );
+        repository.upsert(
+            {
+                ...matchFields,
+                location: 'Gävle',
+                listingUrl: 'https://board-two.example/jobs/rail-yard',
+                description: 'A separate vacancy with its own description.',
+            },
+            'board-two.example',
+        );
+
+        assert.equal(repository.list().length, 2);
+    });
+
     it('does not merge similar titles with different descriptions', () => {
         const repository = createRepository();
         repository.upsert(

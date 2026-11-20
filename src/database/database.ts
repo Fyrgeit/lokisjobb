@@ -365,7 +365,7 @@ function migrateJobsTable(database: Database.Database): void {
 function mergeLikelyDuplicateJobs(database: Database.Database): void {
     const jobs = database
         .prepare(
-            `SELECT id, title, company, canonical_url, description,
+            `SELECT id, title, company, location, canonical_url, description,
                     application_deadline, last_seen_at, ai_category
              FROM jobs ORDER BY discovered_at, id`,
         )
@@ -373,6 +373,7 @@ function mergeLikelyDuplicateJobs(database: Database.Database): void {
         id: number;
         title: string;
         company: string | null;
+        location: string | null;
         canonical_url: string | null;
         description: string | null;
         application_deadline: string | null;
@@ -396,6 +397,7 @@ function mergeLikelyDuplicateJobs(database: Database.Database): void {
                         {
                             title: member.title,
                             company: member.company,
+                            location: member.location,
                             canonicalUrl: member.canonical_url,
                             applicationDeadline: member.application_deadline,
                             description: member.description,
@@ -403,6 +405,7 @@ function mergeLikelyDuplicateJobs(database: Database.Database): void {
                         {
                             title: candidate.title,
                             company: candidate.company,
+                            location: candidate.location,
                             canonicalUrl: candidate.canonical_url,
                             applicationDeadline: candidate.application_deadline,
                             description: candidate.description,
@@ -418,6 +421,9 @@ function mergeLikelyDuplicateJobs(database: Database.Database): void {
         for (const duplicate of cluster.slice(1)) {
             database.transaction(() => {
                 transferJobLinks(database, keep.id, duplicate.id);
+                database
+                    .prepare('DELETE FROM jobs WHERE id = ?')
+                    .run(duplicate.id);
                 database
                     .prepare(
                         `UPDATE jobs
@@ -436,9 +442,6 @@ function mergeLikelyDuplicateJobs(database: Database.Database): void {
                         duplicate.ai_category,
                         keep.id,
                     );
-                database
-                    .prepare('DELETE FROM jobs WHERE id = ?')
-                    .run(duplicate.id);
             })();
             removedIds.add(duplicate.id);
         }

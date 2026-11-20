@@ -31,6 +31,7 @@ type JobIdentityRow = {
 type JobMatchDetailsRow = JobIdentityRow & {
     title: string;
     company: string | null;
+    location: string | null;
     application_deadline: string | null;
     description: string | null;
 };
@@ -165,11 +166,12 @@ export class JobsRepository {
         if (!existing) {
             const candidates = this.database
                 .prepare(
-                    `SELECT id, title, company, application_deadline, description
+                    `SELECT id, title, company, location, application_deadline,
+                            description
                      FROM jobs
                      WHERE application_deadline = ?
                        AND company IS NOT NULL
-                       AND description IS NOT NULL`,
+                    `,
                 )
                 .all(scrapedJob.applicationDeadline) as Array<
                 JobMatchDetailsRow & JobIdentityRow
@@ -178,6 +180,7 @@ export class JobsRepository {
                 isLikelySamePosting(scrapedJob, {
                     title: candidate.title,
                     company: candidate.company,
+                    location: candidate.location,
                     canonicalUrl: candidate.canonical_url,
                     applicationDeadline: candidate.application_deadline,
                     description: candidate.description,

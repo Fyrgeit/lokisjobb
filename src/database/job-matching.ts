@@ -1,6 +1,7 @@
 export interface JobMatchDetails {
     title: string;
     company: string | null;
+    location: string | null;
     canonicalUrl?: string | null;
     applicationDeadline: string | null;
     description: string | null;
@@ -51,11 +52,17 @@ export function isLikelySamePosting(
         !first.applicationDeadline ||
         first.applicationDeadline !== second.applicationDeadline ||
         normalizeText(first.title) !== normalizeText(second.title) ||
-        normalizeText(first.company) !== normalizeText(second.company) ||
-        !first.description ||
-        !second.description
+        normalizeText(first.company) !== normalizeText(second.company)
     ) {
         return false;
+    }
+
+    if (!first.description || !second.description) {
+        return (
+            !!first.location &&
+            !!second.location &&
+            normalizeText(first.location) === normalizeText(second.location)
+        );
     }
 
     const firstDescription = normalizeText(first.description);

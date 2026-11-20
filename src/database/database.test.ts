@@ -363,6 +363,90 @@ it('makes legacy listing URLs optional and merges matching source records', () =
     }
 });
 
+it('preserves canonical URLs when merging a duplicate into a row without one', () => {
+    const directory = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'lokisjobb-canonical-merge-migration-'),
+    );
+    const databasePath = path.join(directory, 'jobs.db');
+    let database: Database.Database | undefined;
+
+    try {
+        const description =
+            'ProTrain söker växlare till Göteborgs Hamn. '.repeat(5);
+        const legacyDatabase = new Database(databasePath);
+        legacyDatabase.exec(`
+            CREATE TABLE jobs (
+                id INTEGER PRIMARY KEY,
+                title TEXT NOT NULL,
+                company TEXT,
+                location TEXT,
+                canonical_url TEXT UNIQUE,
+                description TEXT,
+                application_deadline TEXT,
+                discovered_at TEXT NOT NULL,
+                last_seen_at TEXT NOT NULL,
+                ai_category TEXT
+            );
+            CREATE TABLE job_links (
+                job_id INTEGER NOT NULL,
+                provider_name TEXT NOT NULL,
+                link_url TEXT NOT NULL,
+                link_kind TEXT NOT NULL,
+                first_seen_at TEXT NOT NULL,
+                last_seen_at TEXT NOT NULL,
+                availability TEXT,
+                checked_at TEXT,
+                PRIMARY KEY (job_id, provider_name, link_url, link_kind),
+                FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
+            );
+            INSERT INTO jobs
+                (id, title, company, location, canonical_url, description,
+                 application_deadline, discovered_at, last_seen_at)
+            VALUES
+                (1, 'Växlare/bangårdsoperatör till ProTrain i Göteborgs Hamn',
+                 'ProTrain Bemanning AB', 'Göteborg', NULL, NULL,
+                 '2026-11-20', '2026-11-19', '2026-11-20'),
+                (2, 'Växlare/bangårdsoperatör till ProTrain i Göteborgs Hamn',
+                 'ProTrain Bemanning AB', 'Göteborg',
+                 'https://easyapply.jobs/r/rail-yard',
+                 '${description}', '2026-11-20', '2026-11-20', '2026-11-20');
+            INSERT INTO job_links
+                (job_id, provider_name, link_url, link_kind, first_seen_at,
+                 last_seen_at, availability, checked_at)
+            VALUES
+                (1, 'arbetsformedlingen.se',
+                 'https://arbetsformedlingen.se/platsbanken/annonser/1',
+                 'listing', '2026-11-19', '2026-11-20', 'active', '2026-11-20'),
+                (2, 'jobbland.se',
+                 'https://jobbland.se/jobb/vaxlare-protrain',
+                 'listing', '2026-11-20', '2026-11-20', 'active', '2026-11-20'),
+                (2, 'jobbland.se', 'https://easyapply.jobs/r/rail-yard',
+                 'application', '2026-11-20', '2026-11-20', NULL, NULL);
+        `);
+        legacyDatabase.close();
+
+        database = createDatabase(databasePath);
+        assert.deepEqual(
+            database
+                .prepare('SELECT canonical_url, description FROM jobs')
+                .all(),
+            [
+                {
+                    canonical_url: 'https://easyapply.jobs/r/rail-yard',
+                    description,
+                },
+            ],
+        );
+        const linkCount = database
+            .prepare('SELECT COUNT(*) AS count FROM job_links')
+            .get() as { count: number };
+        assert.equal(linkCount.count, 3);
+    } finally {
+        database?.close();
+        fs.rmSync(directory, { recursive: true, force: true });
+    }
+});
+
 it('strips tracking parameters from stored application links on startup', () => {
     const directory = fs.mkdtempSync(
         path.join(os.tmpdir(), 'lokisjobb-application-url-migration-'),
