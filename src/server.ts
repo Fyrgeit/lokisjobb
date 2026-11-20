@@ -170,6 +170,37 @@ app.get('/api/database/tables/:tableName', async (req, res) => {
     }
 });
 
+app.delete('/api/database', async (_req, res) => {
+    try {
+        const config = getConfig();
+        const result = await withDatabase(config.databasePath, (database) => {
+            const clearJobs = database.transaction(() => {
+                const deletedJobs = (
+                    database
+                        .prepare('SELECT COUNT(*) AS count FROM jobs')
+                        .get() as { count: number }
+                ).count;
+                const deletedLinks = (
+                    database
+                        .prepare('SELECT COUNT(*) AS count FROM job_links')
+                        .get() as { count: number }
+                ).count;
+
+                database.prepare('DELETE FROM jobs').run();
+                return { deletedJobs, deletedLinks };
+            });
+
+            return clearJobs();
+        });
+
+        res.json(result);
+    } catch (error: unknown) {
+        res.status(500).json({
+            error: error instanceof Error ? error.message : String(error),
+        });
+    }
+});
+
 // Run Scraper & AI Evaluator Pipeline Operation
 app.post('/api/ops/run-scraper', async (_req, res) => {
     const stream = createOpsLogStream(res);

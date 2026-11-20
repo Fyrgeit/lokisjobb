@@ -12,6 +12,7 @@ const runHistoryList = document.getElementById('runHistoryList');
 
 const tableSelect = document.getElementById('tableSelect');
 const refreshTableBtn = document.getElementById('refreshTableBtn');
+const clearDatabaseBtn = document.getElementById('clearDatabaseBtn');
 const inspectorTable = document.getElementById('inspectorTable');
 const inspectorBody = document.getElementById('inspectorBody');
 
@@ -390,6 +391,27 @@ async function loadTableInspector() {
         appendLog(`Det gick inte att läsa in tabellen: ${err.message}`, true);
     }
 }
+
+clearDatabaseBtn.addEventListener('click', async () => {
+    const confirmed = window.confirm(
+        'Är du säker på att du vill rensa databasen? Alla jobb och länkar raderas permanent. Körhistoriken bevaras.',
+    );
+    if (!confirmed) return;
+
+    clearDatabaseBtn.disabled = true;
+    try {
+        const res = await fetch('/api/database', { method: 'DELETE' });
+        const data = await parseResponse(res);
+        appendLog(
+            `Databasen har rensats: ${data.deletedJobs} jobb och ${data.deletedLinks} länkar raderades.`,
+        );
+        await Promise.all([fetchStats(), loadTableInspector()]);
+    } catch (err) {
+        appendLog(`Det gick inte att rensa databasen: ${err.message}`, true);
+    } finally {
+        clearDatabaseBtn.disabled = false;
+    }
+});
 
 runScraperBtn.addEventListener('click', runScraper);
 runScraperOnlyBtn.addEventListener('click', runScraperOnly);
