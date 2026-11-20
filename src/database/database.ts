@@ -1,7 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
-import { canonicalizeApplicationUrl } from '../scraper/ingestion.js';
+import {
+    canonicalizeApplicationUrl,
+    stripTrackingParameters,
+} from '../scraper/ingestion.js';
 import { isLikelySamePosting } from './job-matching.js';
 
 const schema = `
@@ -439,6 +442,80 @@ function mergeLikelyDuplicateJobs(database: Database.Database): void {
     }
 }
 
+function normalizeApplicationLinks(database: Database.Database): void {
+    const links = database
+        .prepare(
+            `SELECT job_id, provider_name, link_url, first_seen_at,
+                    last_seen_at, availability, checked_at
+             FROM job_links WHERE link_kind = 'application'`,
+        )
+        .all() as Array<{
+        job_id: number;
+        provider_name: string;
+        link_url: string;
+        first_seen_at: string;
+        last_seen_at: string;
+        availability: string | null;
+        checked_at: string | null;
+    }>;
+
+    for (const link of links) {
+        let normalizedUrl: string;
+        try {
+            normalizedUrl = stripTrackingParameters(link.link_url);
+        } catch (error: unknown) {
+            if (!(error instanceof TypeError)) {
+                throw error;
+            }
+            console.warn(
+                `Skipping application URL cleanup for job #${link.job_id}: invalid URL`,
+            );
+            continue;
+        }
+
+        if (normalizedUrl === link.link_url) {
+            continue;
+        }
+
+        database.transaction(() => {
+            database
+                .prepare(
+                    `INSERT INTO job_links
+                     (job_id, provider_name, link_url, link_kind, first_seen_at,
+                      last_seen_at, availability, checked_at)
+                     VALUES (?, ?, ?, 'application', ?, ?, ?, ?)
+                     ON CONFLICT(job_id, provider_name, link_url, link_kind)
+                     DO UPDATE SET
+                         first_seen_at = MIN(job_links.first_seen_at, excluded.first_seen_at),
+                         last_seen_at = MAX(job_links.last_seen_at, excluded.last_seen_at),
+                         checked_at = CASE
+                             WHEN excluded.checked_at IS NOT NULL
+                                  AND (job_links.checked_at IS NULL
+                                       OR excluded.checked_at > job_links.checked_at)
+                             THEN excluded.checked_at
+                             ELSE job_links.checked_at
+                         END`,
+                )
+                .run(
+                    link.job_id,
+                    link.provider_name,
+                    normalizedUrl,
+                    link.first_seen_at,
+                    link.last_seen_at,
+                    link.availability,
+                    link.checked_at,
+                );
+            database
+                .prepare(
+                    `DELETE FROM job_links
+                     WHERE job_id = ? AND provider_name = ?
+                       AND link_url = ? AND link_kind = 'application'`,
+                )
+                .run(link.job_id, link.provider_name, link.link_url);
+        })();
+    }
+}
+
 function inferSourceName(sourceUrl: string, jobId: number): string {
     try {
         return new URL(sourceUrl).hostname.replace(/^www\./, '');
@@ -544,6 +621,7 @@ export function createDatabase(databasePath: string): Database.Database {
         database.exec(schema);
         migrateJobLinks(database);
         migrateJobsTable(database);
+        normalizeApplicationLinks(database);
         return database;
     } catch (error: unknown) {
         database.close();

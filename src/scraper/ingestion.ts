@@ -48,12 +48,8 @@ function isHttpUrl(value: string): boolean {
     }
 }
 
-export function canonicalizeApplicationUrl(url: string): string {
+export function stripTrackingParameters(url: string): string {
     const parsedUrl = new URL(url);
-
-    // Application links often include source-specific tracking parameters.
-    // They describe the click, not the vacancy, so they must not create new
-    // job identities across aggregators.
     for (const parameter of [...parsedUrl.searchParams.keys()]) {
         if (
             parameter.toLowerCase().startsWith('utm_') ||
@@ -62,6 +58,12 @@ export function canonicalizeApplicationUrl(url: string): string {
             parsedUrl.searchParams.delete(parameter);
         }
     }
+
+    return parsedUrl.toString();
+}
+
+export function canonicalizeApplicationUrl(url: string): string {
+    const parsedUrl = new URL(stripTrackingParameters(url));
 
     if (parsedUrl.hostname === 'jobb.sj.se') {
         parsedUrl.search = '';
@@ -107,7 +109,11 @@ export async function ingestFromSource(
         }
 
         const listingUrl = job.listingUrl.trim();
-        const applicationUrl = job.applicationUrl?.trim() || null;
+        const sourceApplicationUrl = job.applicationUrl?.trim() || null;
+        const applicationUrl =
+            sourceApplicationUrl && isHttpUrl(sourceApplicationUrl)
+                ? stripTrackingParameters(sourceApplicationUrl)
+                : sourceApplicationUrl;
         const normalizedJob: ScrapedJob = {
             ...job,
             title: job.title.trim(),

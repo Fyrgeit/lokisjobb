@@ -362,3 +362,73 @@ it('makes legacy listing URLs optional and merges matching source records', () =
         fs.rmSync(directory, { recursive: true, force: true });
     }
 });
+
+it('strips tracking parameters from stored application links on startup', () => {
+    const directory = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'lokisjobb-application-url-migration-'),
+    );
+    const databasePath = path.join(directory, 'jobs.db');
+    let database: Database.Database | undefined;
+
+    try {
+        const legacyDatabase = new Database(databasePath);
+        legacyDatabase.exec(`
+            CREATE TABLE jobs (
+                id INTEGER PRIMARY KEY,
+                title TEXT NOT NULL,
+                company TEXT,
+                location TEXT,
+                canonical_url TEXT UNIQUE,
+                description TEXT,
+                application_deadline TEXT,
+                discovered_at TEXT NOT NULL,
+                last_seen_at TEXT NOT NULL,
+                ai_category TEXT
+            );
+            CREATE TABLE job_links (
+                job_id INTEGER NOT NULL,
+                provider_name TEXT NOT NULL,
+                link_url TEXT NOT NULL,
+                link_kind TEXT NOT NULL,
+                first_seen_at TEXT NOT NULL,
+                last_seen_at TEXT NOT NULL,
+                availability TEXT,
+                checked_at TEXT,
+                PRIMARY KEY (job_id, provider_name, link_url, link_kind),
+                FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
+            );
+            INSERT INTO jobs
+                (id, title, canonical_url, discovered_at, last_seen_at)
+            VALUES
+                (1, 'Lokförare till SJ Karlstad',
+                 'https://jobb.sj.se/jobs/8697652-lokforare-till-sj-karlstad',
+                 '2026-11-12', '2026-11-12');
+            INSERT INTO job_links
+                (job_id, provider_name, link_url, link_kind, first_seen_at,
+                 last_seen_at, availability, checked_at)
+            VALUES
+                (1, 'jobbsafari.se',
+                 'https://jobb.sj.se/jobs/8697652-lokforare-till-sj-karlstad?utm_source=jobbsafari.se&utm_medium=referral',
+                 'application', '2026-11-12', '2026-11-12', NULL, NULL);
+        `);
+        legacyDatabase.close();
+
+        database = createDatabase(databasePath);
+        assert.deepEqual(
+            database
+                .prepare(
+                    "SELECT link_url FROM job_links WHERE link_kind = 'application'",
+                )
+                .all(),
+            [
+                {
+                    link_url:
+                        'https://jobb.sj.se/jobs/8697652-lokforare-till-sj-karlstad',
+                },
+            ],
+        );
+    } finally {
+        database?.close();
+        fs.rmSync(directory, { recursive: true, force: true });
+    }
+});

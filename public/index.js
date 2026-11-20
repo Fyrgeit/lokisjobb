@@ -298,12 +298,13 @@ function updateDashboard() {
             listingLink?.url ?? applicationLink?.url ?? job.canonicalUrl;
         const actionUrl = applicationLink?.url ?? detailsUrl;
         const actionLabel = applicationLink ? 'Ansök' : 'Visa annons';
+        const listingLinks = links.filter((link) => link.kind === 'listing');
         const linksHtml =
-            links.length > 0
-                ? links
+            listingLinks.length > 0
+                ? listingLinks
                       .map(
                           (link) =>
-                              `<a href="${link.url}" target="_blank" rel="noopener noreferrer" class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded hover:text-indigo-700">${link.kind === 'application' ? 'Ansök' : link.provider}</a>`,
+                              `<a href="${link.url}" target="_blank" rel="noopener noreferrer" class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded hover:text-indigo-700">${link.provider}</a>`,
                       )
                       .join(' ')
                 : '';
