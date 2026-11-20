@@ -1,5 +1,6 @@
 let allJobs = [];
 let currentView = localStorage.getItem('lokisjobb_view') || 'card';
+const filtersStorageKey = 'lokisjobb_filters';
 
 const searchInput = document.getElementById('searchInput');
 const categoryDropdownButton = document.getElementById('categoryDropdownButton');
@@ -29,6 +30,76 @@ const categoryOrder = [
     'Ointressant',
     'Okänd',
 ];
+
+function loadSavedFilters() {
+    try {
+        const savedFilters = JSON.parse(
+            localStorage.getItem(filtersStorageKey) || '{}',
+        );
+        return savedFilters && typeof savedFilters === 'object'
+            ? savedFilters
+            : {};
+    } catch (error) {
+        console.warn('Kunde inte läsa sparade filter.', error);
+        return {};
+    }
+}
+
+const savedFilters = loadSavedFilters();
+searchInput.value =
+    typeof savedFilters.search === 'string' ? savedFilters.search : '';
+const savedCategories = Array.isArray(savedFilters.categories)
+    ? savedFilters.categories
+    : [];
+categoryCheckboxes.forEach((checkbox) => {
+    checkbox.checked = savedCategories.includes(checkbox.value);
+});
+
+function restoreSelectValue(select, value) {
+    if (
+        typeof value === 'string' &&
+        Array.from(select.options).some((option) => option.value === value)
+    ) {
+        select.value = value;
+    }
+}
+
+restoreSelectValue(availabilityFilter, savedFilters.availability);
+restoreSelectValue(sortSelect, savedFilters.sort);
+
+function updateCategoryDropdownLabel() {
+    const checked = Array.from(categoryCheckboxes).filter(
+        (item) => item.checked,
+    );
+    if (checked.length === 0) {
+        categoryDropdownLabel.textContent = 'Alla AI-kategorier';
+    } else if (checked.length === 1) {
+        categoryDropdownLabel.textContent = checked[0].value;
+    } else {
+        categoryDropdownLabel.textContent = `${checked.length} kategorier valda`;
+    }
+}
+
+function saveFilters() {
+    try {
+        localStorage.setItem(
+            filtersStorageKey,
+            JSON.stringify({
+                search: searchInput.value,
+                categories: Array.from(categoryCheckboxes)
+                    .filter((checkbox) => checkbox.checked)
+                    .map((checkbox) => checkbox.value),
+                availability: availabilityFilter.value,
+                provider: providerFilter.value,
+                sort: sortSelect.value,
+            }),
+        );
+    } catch (error) {
+        console.warn('Kunde inte spara filter.', error);
+    }
+}
+
+updateCategoryDropdownLabel();
 
 async function fetchJobs() {
     try {
@@ -71,7 +142,9 @@ function populateProviders() {
         }
     });
 
-    const currentProvider = providerFilter.value;
+    const savedProvider =
+        typeof savedFilters.provider === 'string' ? savedFilters.provider : '';
+    const currentProvider = providerFilter.value || savedProvider;
     providerFilter.innerHTML = '<option value="">Alla leverantörer</option>';
     providersSet.forEach((provider) => {
         const opt = document.createElement('option');
@@ -83,6 +156,8 @@ function populateProviders() {
 }
 
 function updateDashboard() {
+    saveFilters();
+
     // 1. Calculate Stats
     const total = allJobs.length;
     const active = allJobs.filter((j) => j.availability === 'active').length;
@@ -306,9 +381,16 @@ function updateDashboard() {
                         ${job.company || 'Okänt företag'} ${job.location ? `• <span class="text-slate-500">${job.location}</span>` : ''}
                     </p>
 
-                    <p class="text-xs text-slate-500 line-clamp-3 mb-4">
-                        ${job.description || 'Ingen beskrivning tillgänglig.'}
-                    </p>
+                    <div class="mb-4">
+                        <p data-job-description class="text-xs text-slate-500 line-clamp-1">
+                            ${job.description || 'Ingen beskrivning tillgänglig.'}
+                        </p>
+                        ${
+                            job.description
+                                ? '<button type="button" data-toggle-description class="text-xs font-medium text-indigo-600 hover:text-indigo-800">Läs mer</button>'
+                                : ''
+                        }
+                    </div>
                 </div>
 
                 <div class="pt-4 border-t border-slate-100 flex items-center justify-between gap-2 mt-auto">
@@ -321,6 +403,17 @@ function updateDashboard() {
                     </a>
                 </div>
             `;
+            const description = card.querySelector('[data-job-description]');
+            const descriptionToggle = card.querySelector(
+                '[data-toggle-description]',
+            );
+            descriptionToggle?.addEventListener('click', () => {
+                const isExpanded =
+                    !description.classList.toggle('line-clamp-1');
+                descriptionToggle.textContent = isExpanded
+                    ? 'Visa mindre'
+                    : 'Läs mer';
+            });
             outputEl.appendChild(card);
         }
     });
@@ -342,16 +435,7 @@ categoryDropdownButton.addEventListener('click', (e) => {
 });
 categoryCheckboxes.forEach((checkbox) => {
     checkbox.addEventListener('change', () => {
-        const checked = Array.from(categoryCheckboxes).filter(
-            (item) => item.checked,
-        );
-        if (checked.length === 0) {
-            categoryDropdownLabel.textContent = 'Alla AI-kategorier';
-        } else if (checked.length === 1) {
-            categoryDropdownLabel.textContent = checked[0].value;
-        } else {
-            categoryDropdownLabel.textContent = `${checked.length} kategorier valda`;
-        }
+        updateCategoryDropdownLabel();
         updateDashboard();
     });
 });
