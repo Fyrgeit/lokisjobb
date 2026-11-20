@@ -37,25 +37,6 @@
                             Kontrollpanel
                         </a>
                     </nav>
-                    <button
-                        id="refreshButton"
-                        class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium shadow transition text-sm flex items-center gap-2"
-                    >
-                        <svg
-                            class="w-4 h-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                            />
-                        </svg>
-                        Uppdatera jobb
-                    </button>
                 </div>
             </div>
         </header>
@@ -115,18 +96,18 @@
 
             <!-- Filters & Sorting Toolbar -->
             <section
-                class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap gap-4 items-center justify-between"
+                class="bg-white p-3 rounded-xl shadow-sm border border-slate-200 flex flex-wrap gap-2 items-center justify-between"
             >
-                <div class="flex flex-wrap items-center gap-3 flex-1">
-                    <div class="relative min-w-[240px] flex-1">
+                <div class="flex flex-wrap items-center gap-2 flex-1">
+                    <div class="relative min-w-[220px] flex-1">
                         <input
                             type="text"
                             id="searchInput"
                             placeholder="Sök på titel, företag eller ort..."
-                            class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            class="w-full pl-9 pr-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                         />
                         <svg
-                            class="w-4 h-4 text-slate-400 absolute left-3 top-3"
+                            class="w-4 h-4 text-slate-400 absolute left-3 top-2"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -147,7 +128,7 @@
                         <button
                             type="button"
                             id="categoryDropdownButton"
-                            class="inline-flex justify-between items-center w-48 px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            class="inline-flex justify-between items-center w-44 px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         >
                             <span id="categoryDropdownLabel">Alla AI-kategorier</span>
                             <svg
@@ -197,7 +178,7 @@
 
                     <select
                         id="availabilityFilter"
-                        class="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        class="px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     >
                         <option value="">Alla tillgänglighetslägen</option>
                         <option value="active">Aktiv</option>
@@ -207,13 +188,13 @@
 
                     <select
                         id="providerFilter"
-                        class="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        class="px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     >
                         <option value="">Alla leverantörer</option>
                     </select>
                 </div>
 
-                <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2">
                     <div
                         class="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200"
                     >
@@ -257,15 +238,25 @@
                         </button>
                     </div>
 
-                    <div class="flex items-center gap-2">
-                        <label
-                            for="sortSelect"
-                            class="text-sm font-medium text-slate-600 whitespace-nowrap"
-                            >Sortera efter:</label
+                    <div class="flex items-center gap-1">
+                        <svg
+                            class="w-4 h-4 shrink-0 text-slate-500"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            aria-hidden="true"
                         >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M3 6h18M6 12h12M10 18h4"
+                            />
+                        </svg>
                         <select
                             id="sortSelect"
-                            class="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            title="Sortera jobb"
+                            class="px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         >
                             <option value="discovered-desc">
                                 Upptäckt (nyast först)
@@ -286,6 +277,28 @@
                             </option>
                         </select>
                     </div>
+                    <button
+                        id="refreshButton"
+                        type="button"
+                        title="Uppdatera vy"
+                        aria-label="Uppdatera vy"
+                        class="p-2 rounded-lg border border-slate-300 text-slate-600 bg-white hover:bg-slate-50 hover:text-indigo-600 transition disabled:opacity-50"
+                    >
+                        <svg
+                            id="refreshIcon"
+                            class="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                            />
+                        </svg>
+                    </button>
                 </div>
             </section>
 

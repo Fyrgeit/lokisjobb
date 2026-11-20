@@ -14,6 +14,7 @@ const providerFilter = document.getElementById('providerFilter');
 const sortSelect = document.getElementById('sortSelect');
 const outputEl = document.getElementById('output');
 const refreshButton = document.getElementById('refreshButton');
+const refreshIcon = document.getElementById('refreshIcon');
 const jobCountLabel = document.getElementById('jobCountLabel');
 const cardViewBtn = document.getElementById('cardViewBtn');
 const listViewBtn = document.getElementById('listViewBtn');
@@ -443,7 +444,16 @@ categoryCheckboxes.forEach((checkbox) => {
 availabilityFilter.addEventListener('change', updateDashboard);
 providerFilter.addEventListener('change', updateDashboard);
 sortSelect.addEventListener('change', updateDashboard);
-refreshButton.addEventListener('click', fetchJobs);
+refreshButton.addEventListener('click', async () => {
+    refreshButton.disabled = true;
+    refreshIcon.classList.add('animate-spin');
+    try {
+        await fetchJobs();
+    } finally {
+        refreshIcon.classList.remove('animate-spin');
+        refreshButton.disabled = false;
+    }
+});
 cardViewBtn.addEventListener('click', () => {
     currentView = 'card';
     localStorage.setItem('lokisjobb_view', 'card');
