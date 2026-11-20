@@ -56,7 +56,7 @@ describe('ingestFromSource', () => {
         assert.equal(ingestedJob?.applicationUrl, scrapedJob.applicationUrl);
     });
 
-    it('falls back to the listing URL as identity for mailto application links', async () => {
+    it('leaves the canonical URL unset for mailto application links', async () => {
         const scrapedJob: ScrapedJob = {
             title: 'Lokförare',
             company: null,
@@ -85,7 +85,7 @@ describe('ingestFromSource', () => {
             console.log = originalLog;
         }
 
-        assert.equal(ingestedJob?.canonicalUrl, scrapedJob.listingUrl);
+        assert.equal(ingestedJob?.canonicalUrl, null);
         assert.equal(ingestedJob?.applicationUrl, scrapedJob.applicationUrl);
     });
 });

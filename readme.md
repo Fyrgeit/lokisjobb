@@ -44,7 +44,7 @@ npm run dev
 
 ## Key Features
 
-1. **Deduplication & Provenance**: Jobs use a canonical URL as their deduplication key. The `job_links` table tracks provider listing URLs and application destinations separately, with sighting and availability metadata for listings. Known Jobylon URL variants are automatically normalized so syndicated listings converge without losing provenance.
+1. **Deduplication & Provenance**: Jobs have an internal identity; a canonical URL is optional and is populated only for a known web application destination. The `job_links` table retains provider listing URLs and application destinations separately, with sighting and availability metadata for listings. Listings with matching employer, title, deadline, and highly similar descriptions can merge even when providers use different URLs. Known Jobylon URL variants are normalized without losing source links.
 2. **Availability Tracking**: Each provider listing link tracks availability as `active`, `closed`, or `unknown`. A job is marked `closed` only when all known listings report it closed. Closed jobs are retained for historical analysis.
 3. **AI Classification (Gemini)**: Assigns each evaluated job one of `Persontåg`, `Godståg`, `Växlare`, `Intressant`, or `Ointressant`; unevaluated jobs remain `Okänd`. The classifier returns no rationale.
 4. **Provider Redundancy Analysis**: Analyzes overlap, exclusive job coverage, and minimal provider combinations needed for 100% market coverage.

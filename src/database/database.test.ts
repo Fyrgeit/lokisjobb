@@ -263,3 +263,102 @@ it('migrates source records into typed job links without losing their metadata',
         fs.rmSync(directory, { recursive: true, force: true });
     }
 });
+
+it('makes legacy listing URLs optional and merges matching source records', () => {
+    const directory = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'lokisjobb-deduplication-migration-'),
+    );
+    const databasePath = path.join(directory, 'jobs.db');
+    let database: Database.Database | undefined;
+
+    try {
+        const description =
+            'SHN Cargo Sverige AB söker lokförare till stationeringsort Falköping. Du genomför säkra och effektiva godstransporter och samarbetar med kollegor. Vi söker dig med lokförarbevis, yrkeserfarenhet och högt säkerhetstänkande. Heltid med varierande tjänstgöring enligt 5/2-schema. Sista ansökningsdag är 15 december 2026.';
+        const legacyDatabase = new Database(databasePath);
+        legacyDatabase.exec(`
+            CREATE TABLE jobs (
+                id INTEGER PRIMARY KEY,
+                title TEXT NOT NULL,
+                company TEXT,
+                location TEXT,
+                canonical_url TEXT NOT NULL UNIQUE,
+                description TEXT,
+                application_deadline TEXT,
+                discovered_at TEXT NOT NULL,
+                last_seen_at TEXT NOT NULL,
+                ai_category TEXT
+            );
+            CREATE TABLE job_links (
+                job_id INTEGER NOT NULL,
+                provider_name TEXT NOT NULL,
+                link_url TEXT NOT NULL,
+                link_kind TEXT NOT NULL,
+                first_seen_at TEXT NOT NULL,
+                last_seen_at TEXT NOT NULL,
+                availability TEXT,
+                checked_at TEXT,
+                PRIMARY KEY (job_id, provider_name, link_url, link_kind),
+                FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
+            );
+            INSERT INTO jobs
+                (id, title, company, location, canonical_url, description,
+                 application_deadline, discovered_at, last_seen_at)
+            VALUES
+                (1, 'Lokförare till SHN Cargo', 'SHN Cargo AB', NULL,
+                 'https://arbetsformedlingen.se/platsbanken/annonser/31714391',
+                 '${description}', '2026-12-15', '2026-11-12T10:00:00.000Z',
+                 '2026-11-20T09:00:00.000Z'),
+                (2, 'Lokförare till SHN Cargo', 'SHN Cargo AB',
+                 'De nordiska länderna',
+                 'https://jobbland.se/jobb/lokforare-till-shn-cargo-sasrb-20725653',
+                 '${description} Lön enligt överenskommelse.',
+                 '2026-12-15', '2026-11-12T11:00:00.000Z',
+                 '2026-11-12T11:00:00.000Z');
+            INSERT INTO job_links
+                (job_id, provider_name, link_url, link_kind, first_seen_at,
+                 last_seen_at, availability, checked_at)
+            VALUES
+                (1, 'arbetsformedlingen.se',
+                 'https://arbetsformedlingen.se/platsbanken/annonser/31714391',
+                 'listing', '2026-11-12', '2026-11-20', 'active', '2026-11-20'),
+                (2, 'jobbland.se',
+                 'https://jobbland.se/jobb/lokforare-till-shn-cargo-sasrb-20725653',
+                 'listing', '2026-11-12', '2026-11-12', 'active', '2026-11-12');
+        `);
+        legacyDatabase.close();
+
+        database = createDatabase(databasePath);
+        const jobs = database
+            .prepare('SELECT id, canonical_url FROM jobs')
+            .all();
+        const links = database
+            .prepare(
+                'SELECT provider_name, link_url FROM job_links ORDER BY provider_name',
+            )
+            .all();
+        const canonicalColumn = (
+            database.prepare('PRAGMA table_info(jobs)').all() as Array<{
+                name: string;
+                notnull: number;
+            }>
+        ).find((column) => column.name === 'canonical_url');
+
+        assert.deepEqual(jobs, [{ id: 1, canonical_url: null }]);
+        assert.deepEqual(links, [
+            {
+                provider_name: 'arbetsformedlingen.se',
+                link_url:
+                    'https://arbetsformedlingen.se/platsbanken/annonser/31714391',
+            },
+            {
+                provider_name: 'jobbland.se',
+                link_url:
+                    'https://jobbland.se/jobb/lokforare-till-shn-cargo-sasrb-20725653',
+            },
+        ]);
+        assert.equal(canonicalColumn?.notnull, 0);
+    } finally {
+        database?.close();
+        fs.rmSync(directory, { recursive: true, force: true });
+    }
+});

@@ -30,13 +30,13 @@ export interface ScrapedJob {
 }
 
 export interface IngestedJob extends ScrapedJob {
-    canonicalUrl: string;
+    canonicalUrl: string | null;
 }
 
 // Job is the database-backed form of a scraped job.
 export interface Job extends Omit<ScrapedJob, 'listingUrl' | 'applicationUrl' | 'availability'> {
     id: number;
-    canonicalUrl: string;
+    canonicalUrl: string | null;
     discoveredAt: string;
     lastSeenAt: string;
     aiCategory: AiCategory | null;

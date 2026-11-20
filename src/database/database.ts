@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { canonicalizeApplicationUrl } from '../scraper/ingestion.js';
+import { isLikelySamePosting } from './job-matching.js';
 
 const schema = `
   CREATE TABLE IF NOT EXISTS jobs (
@@ -9,7 +10,7 @@ const schema = `
     title TEXT NOT NULL,
     company TEXT,
     location TEXT,
-    canonical_url TEXT NOT NULL UNIQUE,
+    canonical_url TEXT UNIQUE,
     description TEXT,
     application_deadline TEXT,
     discovered_at TEXT NOT NULL,
@@ -32,6 +33,112 @@ const schema = `
 
     CREATE INDEX IF NOT EXISTS idx_job_links_url ON job_links(link_url);
 `;
+
+function quoteIdentifier(identifier: string): string {
+    return `"${identifier.replace(/"/g, '""')}"`;
+}
+
+function makeCanonicalUrlNullable(database: Database.Database): void {
+    const columns = database.prepare('PRAGMA table_info(jobs)').all() as Array<{
+        name: string;
+        type: string;
+        notnull: number;
+        dflt_value: string | null;
+        pk: number;
+    }>;
+    const canonicalUrlColumn = columns.find(
+        (column) => column.name === 'canonical_url',
+    );
+    if (!canonicalUrlColumn?.notnull) {
+        return;
+    }
+
+    const indexes = database
+        .prepare('PRAGMA index_list(jobs)')
+        .all() as Array<{
+        name: string;
+        unique: number;
+        origin: string;
+    }>;
+    const explicitIndexSql = database
+        .prepare(
+            "SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'jobs' AND sql IS NOT NULL",
+        )
+        .all() as Array<{ sql: string }>;
+    const uniqueIndexes = indexes
+        .filter((index) => index.unique && index.origin === 'u')
+        .map((index, number) => {
+            const indexColumns = database
+                .prepare(`PRAGMA index_info(${quoteIdentifier(index.name)})`)
+                .all() as Array<{ name: string | null }>;
+            const names = indexColumns
+                .map((column) => column.name)
+                .filter((name): name is string => name !== null);
+            if (names.length !== indexColumns.length) {
+                return null;
+            }
+            return {
+                name: `idx_jobs_nullable_unique_${number}`,
+                columns: names.map(quoteIdentifier),
+            };
+        })
+        .filter(
+            (
+                index,
+            ): index is {
+                name: string;
+                columns: string[];
+            } => index !== null,
+        );
+    const definitions = columns.map((column) => {
+        const definition = [
+            quoteIdentifier(column.name),
+            column.type,
+            ...(column.pk ? ['PRIMARY KEY'] : []),
+            ...(!column.pk && column.notnull && column.name !== 'canonical_url'
+                ? ['NOT NULL']
+                : []),
+            ...(column.dflt_value !== null
+                ? [`DEFAULT ${column.dflt_value}`]
+                : []),
+        ];
+        return definition.join(' ');
+    });
+    const columnNames = columns
+        .map((column) => quoteIdentifier(column.name))
+        .join(', ');
+
+    database.pragma('foreign_keys = OFF');
+    try {
+        database.transaction(() => {
+            database.exec(
+                `CREATE TABLE jobs_nullable (${definitions.join(', ')})`,
+            );
+            database.exec(
+                `INSERT INTO jobs_nullable (${columnNames})
+                 SELECT ${columnNames} FROM jobs`,
+            );
+            database.exec('DROP TABLE jobs');
+            database.exec('ALTER TABLE jobs_nullable RENAME TO jobs');
+            for (const index of uniqueIndexes) {
+                database.exec(
+                    `CREATE UNIQUE INDEX ${quoteIdentifier(index.name)}
+                     ON jobs (${index.columns.join(', ')})`,
+                );
+            }
+            for (const index of explicitIndexSql) {
+                database.exec(index.sql);
+            }
+        })();
+    } finally {
+        database.pragma('foreign_keys = ON');
+    }
+
+    const violations = database.prepare('PRAGMA foreign_key_check').all();
+    if (violations.length > 0) {
+        throw new Error('Jobs table migration left invalid job links');
+    }
+}
 
 // Existing local databases may have been created before newer columns existed.
 // Keep startup backwards-compatible by adding only missing columns.
@@ -74,14 +181,39 @@ function migrateJobsTable(database: Database.Database): void {
         database.exec('ALTER TABLE jobs DROP COLUMN status');
     }
 
+    makeCanonicalUrlNullable(database);
+
     // Canonicalize job URLs and merge duplicates
     const jobs = database
         .prepare('SELECT id, canonical_url FROM jobs')
         .all() as Array<{
         id: number;
-        canonical_url: string;
+        canonical_url: string | null;
     }>;
     for (const job of jobs) {
+        if (job.canonical_url === null) {
+            continue;
+        }
+
+        const isListingUrl = database
+            .prepare(
+                `SELECT 1 FROM job_links
+                 WHERE job_id = ? AND link_kind = 'listing' AND link_url = ?`,
+            )
+            .get(job.id, job.canonical_url);
+        const isApplicationUrl = database
+            .prepare(
+                `SELECT 1 FROM job_links
+                 WHERE job_id = ? AND link_kind = 'application' AND link_url = ?`,
+            )
+            .get(job.id, job.canonical_url);
+        if (isListingUrl && !isApplicationUrl) {
+            database
+                .prepare('UPDATE jobs SET canonical_url = NULL WHERE id = ?')
+                .run(job.id);
+            continue;
+        }
+
         let canonicalUrl: string;
         try {
             canonicalUrl = canonicalizeApplicationUrl(job.canonical_url);
@@ -92,6 +224,16 @@ function migrateJobsTable(database: Database.Database): void {
             console.warn(
                 `Skipping URL canonicalization for job #${job.id}: invalid URL`,
             );
+            continue;
+        }
+
+        if (
+            isApplicationUrl &&
+            !['http:', 'https:'].includes(new URL(canonicalUrl).protocol)
+        ) {
+            database
+                .prepare('UPDATE jobs SET canonical_url = NULL WHERE id = ?')
+                .run(job.id);
             continue;
         }
 
@@ -129,6 +271,7 @@ function migrateJobsTable(database: Database.Database): void {
         .prepare(
             `
         SELECT canonical_url, COUNT(*) as cnt FROM jobs
+        WHERE canonical_url IS NOT NULL
         GROUP BY canonical_url HAVING cnt > 1
     `,
         )
@@ -201,6 +344,98 @@ function migrateJobsTable(database: Database.Database): void {
             }
         }
         database.exec('ALTER TABLE jobs DROP COLUMN source_url');
+    }
+
+    mergeLikelyDuplicateJobs(database);
+}
+
+function mergeLikelyDuplicateJobs(database: Database.Database): void {
+    const jobs = database
+        .prepare(
+            `SELECT id, title, company, canonical_url, description,
+                    application_deadline, last_seen_at, ai_category
+             FROM jobs ORDER BY discovered_at, id`,
+        )
+        .all() as Array<{
+        id: number;
+        title: string;
+        company: string | null;
+        canonical_url: string | null;
+        description: string | null;
+        application_deadline: string | null;
+        last_seen_at: string;
+        ai_category: string | null;
+    }>;
+    const removedIds = new Set<number>();
+
+    for (let index = 0; index < jobs.length; index += 1) {
+        const keep = jobs[index];
+        if (!keep || removedIds.has(keep.id)) {
+            continue;
+        }
+
+        const cluster = [keep];
+        for (const candidate of jobs.slice(index + 1)) {
+            if (
+                removedIds.has(candidate.id) ||
+                !cluster.every((member) =>
+                    isLikelySamePosting(
+                        {
+                            title: member.title,
+                            company: member.company,
+                            canonicalUrl: member.canonical_url,
+                            applicationDeadline: member.application_deadline,
+                            description: member.description,
+                        },
+                        {
+                            title: candidate.title,
+                            company: candidate.company,
+                            canonicalUrl: candidate.canonical_url,
+                            applicationDeadline: candidate.application_deadline,
+                            description: candidate.description,
+                        },
+                    ),
+                )
+            ) {
+                continue;
+            }
+            cluster.push(candidate);
+        }
+
+        for (const duplicate of cluster.slice(1)) {
+            database.transaction(() => {
+                database
+                    .prepare(
+                        `INSERT OR IGNORE INTO job_links
+                         SELECT ?, provider_name, link_url, link_kind,
+                                first_seen_at, last_seen_at, availability, checked_at
+                         FROM job_links WHERE job_id = ?`,
+                    )
+                    .run(keep.id, duplicate.id);
+                database
+                    .prepare(
+                        `UPDATE jobs
+                         SET canonical_url = COALESCE(canonical_url, ?),
+                             description = COALESCE(description, ?),
+                             application_deadline = COALESCE(application_deadline, ?),
+                             last_seen_at = MAX(last_seen_at, ?),
+                                 ai_category = COALESCE(ai_category, ?)
+                         WHERE id = ?`,
+                    )
+                    .run(
+                        duplicate.canonical_url,
+                        duplicate.description,
+                        duplicate.application_deadline,
+                        duplicate.last_seen_at,
+                        duplicate.ai_category,
+                        keep.id,
+                    );
+                database
+                    .prepare('DELETE FROM jobs WHERE id = ?')
+                    .run(duplicate.id);
+            })();
+            removedIds.add(duplicate.id);
+        }
     }
 }
 

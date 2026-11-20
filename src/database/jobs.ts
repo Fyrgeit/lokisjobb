@@ -6,6 +6,7 @@ import type {
     IngestedJob,
     SourceAvailability,
 } from '../types/job.js';
+import { isLikelySamePosting } from './job-matching.js';
 
 export type UpsertResult = 'inserted' | 'updated';
 
@@ -14,7 +15,7 @@ type JobRow = {
     title: string;
     company: string | null;
     location: string | null;
-    canonical_url: string;
+    canonical_url: string | null;
     description: string | null;
     application_deadline: string | null;
     discovered_at: string;
@@ -24,7 +25,14 @@ type JobRow = {
 
 type JobIdentityRow = {
     id: number;
-    canonical_url: string;
+    canonical_url: string | null;
+};
+
+type JobMatchDetailsRow = JobIdentityRow & {
+    title: string;
+    company: string | null;
+    application_deadline: string | null;
+    description: string | null;
 };
 
 type SourceRow = {
@@ -36,18 +44,6 @@ type SourceRow = {
     availability: SourceAvailability | null;
     checked_at: string | null;
 };
-
-function hasWebApplicationUrl(url?: string | null): boolean {
-    if (!url) {
-        return false;
-    }
-
-    try {
-        return ['http:', 'https:'].includes(new URL(url).protocol);
-    } catch {
-        return false;
-    }
-}
 
 function deriveAvailability(
     links: JobLink[],
@@ -117,44 +113,60 @@ export class JobsRepository {
                      SELECT job_id FROM job_links
                      WHERE link_kind = 'listing' AND link_url = ?
                  )
-                 AND canonical_url <> ?`,
+                `,
             )
-            .get(
-                scrapedJob.listingUrl,
-                scrapedJob.canonicalUrl,
-            ) as JobIdentityRow | undefined;
+            .get(scrapedJob.listingUrl) as JobIdentityRow | undefined;
 
-        if (canonicalJob && sourceJob) {
-            this.database.transaction(() => {
-                this.database
-                    .prepare(
-                        `INSERT OR IGNORE INTO job_links
-                         SELECT ?, provider_name, link_url, link_kind, first_seen_at, last_seen_at, availability, checked_at
-                         FROM job_links WHERE job_id = ?`,
-                    )
-                    .run(canonicalJob.id, sourceJob.id);
-                this.database
-                    .prepare('DELETE FROM jobs WHERE id = ?')
-                    .run(sourceJob.id);
-            })();
+        let existing = canonicalJob ?? sourceJob;
+        if (!existing) {
+            const candidates = this.database
+                .prepare(
+                    `SELECT id, title, company, application_deadline, description
+                     FROM jobs
+                     WHERE application_deadline = ?
+                       AND company IS NOT NULL
+                       AND description IS NOT NULL`,
+                )
+                .all(scrapedJob.applicationDeadline) as Array<
+                JobMatchDetailsRow & JobIdentityRow
+            >;
+            const matches = candidates.filter((candidate) =>
+                isLikelySamePosting(scrapedJob, {
+                    title: candidate.title,
+                    company: candidate.company,
+                    canonicalUrl: candidate.canonical_url,
+                    applicationDeadline: candidate.application_deadline,
+                    description: candidate.description,
+                }),
+            );
+            if (matches.length === 1) {
+                existing = matches[0];
+            }
         }
 
-        const existing = canonicalJob ?? sourceJob;
-        const canonicalUrl =
-            existing && !hasWebApplicationUrl(scrapedJob.applicationUrl)
-                ? existing.canonical_url
-                : scrapedJob.canonicalUrl;
+        if (canonicalJob && sourceJob && canonicalJob.id !== sourceJob.id) {
+            this.mergeJobs(canonicalJob.id, sourceJob.id);
+            existing = canonicalJob;
+        }
 
         if (existing) {
             // Leave discovered_at and ai_category untouched so evaluations
             // survive re-ingestion.
             this.database
                 .prepare(
-                    'UPDATE jobs SET title = ?, canonical_url = ?, description = ?, last_seen_at = ?, application_deadline = ? WHERE id = ?',
+                    `UPDATE jobs
+                     SET title = ?, company = COALESCE(company, ?),
+                         location = COALESCE(location, ?),
+                         canonical_url = COALESCE(?, canonical_url),
+                         description = COALESCE(?, description),
+                         last_seen_at = ?, application_deadline = ?
+                     WHERE id = ?`,
                 )
                 .run(
                     scrapedJob.title,
-                    canonicalUrl,
+                    scrapedJob.company,
+                    scrapedJob.location,
+                    scrapedJob.canonicalUrl,
                     scrapedJob.description,
                     now,
                     scrapedJob.applicationDeadline,
@@ -181,7 +193,7 @@ export class JobsRepository {
             return 'updated';
         }
 
-        this.database
+        const inserted = this.database
             .prepare(
                 `INSERT INTO jobs
           (title, company, location, canonical_url, description, application_deadline, discovered_at, last_seen_at, ai_category)
@@ -191,18 +203,16 @@ export class JobsRepository {
                 scrapedJob.title,
                 scrapedJob.company,
                 scrapedJob.location,
-                canonicalUrl,
+                scrapedJob.canonicalUrl,
                 scrapedJob.description,
                 scrapedJob.applicationDeadline,
                 now,
                 now,
             );
 
-        const inserted = this.database
-            .prepare('SELECT id FROM jobs WHERE canonical_url = ?')
-            .get(canonicalUrl) as { id: number };
+        const jobId = Number(inserted.lastInsertRowid);
         this.recordLink(
-            inserted.id,
+            jobId,
             sourceName,
             scrapedJob.listingUrl,
             'listing',
@@ -211,7 +221,7 @@ export class JobsRepository {
         );
         if (scrapedJob.applicationUrl) {
             this.recordLink(
-                inserted.id,
+                jobId,
                 sourceName,
                 scrapedJob.applicationUrl,
                 'application',
@@ -221,6 +231,38 @@ export class JobsRepository {
         }
 
         return 'inserted';
+    }
+
+    private mergeJobs(keepId: number, removeId: number): void {
+        this.database.transaction(() => {
+            this.database
+                .prepare(
+                    `INSERT INTO job_links
+                     SELECT ?, provider_name, link_url, link_kind, first_seen_at,
+                            last_seen_at, availability, checked_at
+                     FROM job_links WHERE job_id = ?
+                     ON CONFLICT(job_id, provider_name, link_url, link_kind)
+                     DO UPDATE SET
+                         first_seen_at = MIN(job_links.first_seen_at, excluded.first_seen_at),
+                         last_seen_at = MAX(job_links.last_seen_at, excluded.last_seen_at),
+                         availability = CASE
+                             WHEN excluded.checked_at IS NOT NULL
+                                  AND (job_links.checked_at IS NULL
+                                       OR excluded.checked_at > job_links.checked_at)
+                             THEN excluded.availability
+                             ELSE job_links.availability
+                         END,
+                         checked_at = CASE
+                             WHEN excluded.checked_at IS NOT NULL
+                                  AND (job_links.checked_at IS NULL
+                                       OR excluded.checked_at > job_links.checked_at)
+                             THEN excluded.checked_at
+                             ELSE job_links.checked_at
+                         END`,
+                )
+                .run(keepId, removeId);
+            this.database.prepare('DELETE FROM jobs WHERE id = ?').run(removeId);
+        })();
     }
 
     private recordLink(
@@ -271,7 +313,11 @@ export class JobsRepository {
         }));
     }
 
-    public findByCanonicalUrl(url: string): Job | undefined {
+    public findByCanonicalUrl(url: string | null): Job | undefined {
+        if (url === null) {
+            return undefined;
+        }
+
         const row = this.database
             .prepare('SELECT * FROM jobs WHERE canonical_url = ?')
             .get(url) as JobRow | undefined;

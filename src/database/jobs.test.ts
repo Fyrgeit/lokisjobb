@@ -108,7 +108,7 @@ describe('JobsRepository.upsert', () => {
         repository.upsert(
             {
                 ...scrapedJob,
-                canonicalUrl: secondSourceUrl,
+                canonicalUrl: null,
                 listingUrl: secondSourceUrl,
             },
             'jobbland.se',
@@ -131,6 +131,84 @@ describe('JobsRepository.upsert', () => {
             '2026-01-02T10:00:00.000Z',
         );
         assert.equal(repository.findByCanonicalUrl(canonicalUrl)?.links.length, 4);
+    });
+
+    it('merges strongly matching listings without an application URL', () => {
+        const repository = createRepository();
+        const description =
+            'SHN Cargo Sverige AB söker lokförare till stationeringsort Falköping. Du genomför säkra och effektiva godstransporter och samarbetar med kollegor. Vi söker dig med lokförarbevis, yrkeserfarenhet och högt säkerhetstänkande. Heltid med varierande tjänstgöring enligt 5/2-schema. Sista ansökningsdag är 15 december 2026.';
+        const firstListing = 'https://board-one.example/jobs/driver';
+        const secondListing = 'https://board-two.example/jobs/driver';
+
+        repository.upsert(
+            {
+                ...scrapedJob,
+                title: 'Lokförare till SHN Cargo',
+                company: 'SHN Cargo AB',
+                location: null,
+                canonicalUrl: null,
+                listingUrl: firstListing,
+                description,
+                applicationDeadline: '2026-12-15',
+            },
+            'board-one.example',
+            '2026-11-12T10:00:00.000Z',
+        );
+        repository.upsert(
+            {
+                ...scrapedJob,
+                title: 'Lokförare till SHN Cargo',
+                company: 'SHN Cargo AB',
+                location: 'De nordiska länderna',
+                canonicalUrl: null,
+                listingUrl: secondListing,
+                description: `${description} Lön enligt överenskommelse.`,
+                applicationDeadline: '2026-12-15',
+            },
+            'board-two.example',
+            '2026-11-12T11:00:00.000Z',
+        );
+
+        const jobs = repository.list();
+        assert.equal(jobs.length, 1);
+        assert.equal(jobs[0]?.canonicalUrl, null);
+        assert.deepEqual(
+            jobs[0]?.links.map((link) => link.url).sort(),
+            [firstListing, secondListing],
+        );
+    });
+
+    it('does not merge similar titles with different descriptions', () => {
+        const repository = createRepository();
+        repository.upsert(
+            {
+                ...scrapedJob,
+                title: 'Lokförare till SHN Cargo',
+                company: 'SHN Cargo AB',
+                canonicalUrl: null,
+                description:
+                    'SHN Cargo söker lokförare till godstrafik i Falköping. ' +
+                    'Erfarenhet och giltigt lokförarbevis krävs. '.repeat(5),
+                applicationDeadline: '2026-12-15',
+            },
+            'board-one.example',
+        );
+        repository.upsert(
+            {
+                ...scrapedJob,
+                title: 'Lokförare till SHN Cargo',
+                company: 'SHN Cargo AB',
+                canonicalUrl: null,
+                listingUrl: 'https://board-two.example/jobs/driver',
+                description:
+                    'Vi söker en lokförare för persontrafik i Malmö. ' +
+                    'Arbetet innebär kvällspass och helgtjänstgöring. '.repeat(5),
+                applicationDeadline: '2026-12-15',
+            },
+            'board-two.example',
+        );
+
+        assert.equal(repository.list().length, 2);
     });
 
     it('derives closed availability when a source reports a closed vacancy', () => {
@@ -251,7 +329,7 @@ describe('JobsRepository.upsert', () => {
         repository.upsert(
             {
                 ...scrapedJob,
-                canonicalUrl: listingUrl,
+                canonicalUrl: null,
                 listingUrl,
                 applicationUrl: null,
             },

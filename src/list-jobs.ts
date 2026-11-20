@@ -28,7 +28,7 @@ function formatJob(job: Job): string {
         `AI-kategori: ${job.aiCategory ?? 'Ej klassificerad'}`,
         `Upptäckt: ${job.discoveredAt}`,
         `Senast sedd: ${job.lastSeenAt}`,
-        `Kanonisk URL: ${job.canonicalUrl}`,
+        `Kanonisk URL: ${job.canonicalUrl ?? 'Ej angiven'}`,
         `Jobblänkar (${job.links.length}): ${job.links.map((link) => `${link.kind === 'application' ? 'Ansökan' : 'Annons'} från ${link.provider}${link.availability ? ` [${formatAvailability(link.availability)}]` : ''} (${link.url})`).join(', ') || 'Inga'}`,
         `Beskrivning: ${formatDescription(job.description)}`,
     ].join('\n');

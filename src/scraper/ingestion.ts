@@ -106,14 +106,8 @@ export async function ingestFromSource(
             continue;
         }
 
-        // Use the application destination as the identity when it is a web
-        // URL; otherwise use the provider's listing page.
         const listingUrl = job.listingUrl.trim();
         const applicationUrl = job.applicationUrl?.trim() || null;
-        const identityUrl =
-            applicationUrl && isHttpUrl(applicationUrl)
-                ? applicationUrl
-                : listingUrl;
         const normalizedJob: ScrapedJob = {
             ...job,
             title: job.title.trim(),
@@ -122,7 +116,10 @@ export async function ingestFromSource(
         };
         const ingestedJob: IngestedJob = {
             ...normalizedJob,
-            canonicalUrl: canonicalizeApplicationUrl(identityUrl),
+            canonicalUrl:
+                applicationUrl && isHttpUrl(applicationUrl)
+                    ? canonicalizeApplicationUrl(applicationUrl)
+                    : null,
         };
         console.log(
             `[Hämtning] Bearbetar jobb: "${ingestedJob.title}" (annons: ${ingestedJob.listingUrl}, ansökan: ${ingestedJob.applicationUrl ?? 'ej angiven'}) från ${provider.name}`,
