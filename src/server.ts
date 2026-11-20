@@ -9,6 +9,10 @@ import { evaluateUnevaluatedJobs } from './evaluator/job-evaluation.js';
 import { createProviders } from './providers/create-providers.js';
 import { runIngestion } from './scraper/run-ingestion.js';
 import { analyzeProviderRedundancy } from './analysis/provider-redundancy.js';
+import {
+    RunHistoryRepository,
+    withRunHistory,
+} from './database/run-history.js';
 
 const app = express();
 const PORT = 3000;
@@ -60,24 +64,47 @@ async function runScraperIngestion(
     repository: JobsRepository,
     log: (message: string) => void,
 ) {
-    return runIngestion(searchQueries, createProviders(), repository, {
-        onQuery: (query) => log(`--- Söker efter: "${query}" ---`),
-        onProviderStart: (provider, query) =>
-            log(`Söker efter "${query}" hos ${provider.name}...`),
-        onProviderComplete: (provider, _query, summary) =>
-            log(
-                `[${provider.name}] Hittade ${summary.found}, lade till ${summary.added}, uppdaterade ${summary.updated}`,
-            ),
-        onProviderError: (provider, query, error) =>
-            log(
-                `[${provider.name}] Misslyckades för sökningen "${query}": ${error instanceof Error ? error.message : error}`,
-            ),
-    });
+    let failedProviderQueries = 0;
+    const totals = await runIngestion(
+        searchQueries,
+        createProviders(),
+        repository,
+        {
+            onQuery: (query) => log(`--- Söker efter: "${query}" ---`),
+            onProviderStart: (provider, query) =>
+                log(`Söker efter "${query}" hos ${provider.name}...`),
+            onProviderComplete: (provider, _query, summary) =>
+                log(
+                    `[${provider.name}] Hittade ${summary.found}, lade till ${summary.added}, uppdaterade ${summary.updated}`,
+                ),
+            onProviderError: (provider, query, error) => {
+                failedProviderQueries += 1;
+                log(
+                    `[${provider.name}] Misslyckades för sökningen "${query}": ${error instanceof Error ? error.message : error}`,
+                );
+            },
+        },
+    );
+    return { totals, failedProviderQueries };
 }
 
 // Existing API endpoint for dashboard jobs
 app.get('/api/jobs', (_req, res) => {
     res.json(getJobs());
+});
+
+app.get('/api/ops/history', async (_req, res) => {
+    try {
+        const config = getConfig();
+        const entries = await withDatabase(config.databasePath, (database) =>
+            new RunHistoryRepository(database).list(),
+        );
+        res.json({ entries });
+    } catch (error: unknown) {
+        res.status(500).json({
+            error: error instanceof Error ? error.message : String(error),
+        });
+    }
 });
 
 // Database stats endpoint
@@ -119,7 +146,10 @@ app.get('/api/database/stats', async (_req, res) => {
 // Database table inspector endpoint
 app.get('/api/database/tables/:tableName', async (req, res) => {
     const { tableName } = req.params;
-    if (tableName !== 'jobs' && tableName !== 'job_links') {
+    if (
+        tableName !== 'jobs' &&
+        tableName !== 'job_links'
+    ) {
         res.status(400).json({
             error: 'Ogiltigt tabellnamn. Tillåtna tabeller: jobs, job_links',
         });
@@ -149,23 +179,60 @@ app.post('/api/ops/run-scraper', async (_req, res) => {
         const config = getConfig();
         const result = await withDatabase(config.databasePath, async (database) => {
             const repository = new JobsRepository(database);
-            const totals = await runScraperIngestion(
-                config.searchQueries,
-                repository,
-                log,
+            const history = new RunHistoryRepository(database);
+            const fetchResult = await withRunHistory(
+                history,
+                'fetch',
+                () =>
+                    runScraperIngestion(
+                        config.searchQueries,
+                        repository,
+                        log,
+                    ),
+                (result) => ({
+                    status:
+                        result.failedProviderQueries > 0
+                            ? 'partial'
+                            : 'success',
+                    summary: {
+                        source: 'Alla källor',
+                        found: result.totals.found,
+                        added: result.totals.added,
+                        updated: result.totals.updated,
+                        skipped: result.totals.skipped,
+                        failed: result.failedProviderQueries,
+                    },
+                }),
             );
+            const totals = fetchResult.totals;
 
             log(`--- Hämtning – totalt ---`);
             log(
                 `Hittade totalt: ${totals.found}, tillagda: ${totals.added}, uppdaterade: ${totals.updated}`,
             );
-
             log(`\n--- AI-klassificering ---`);
-            const evaluation = await evaluateUnevaluatedJobs(
-                repository,
-                config.geminiApiKey,
-                config.geminiModel,
-                { log, error: log },
+            const evaluation = await withRunHistory(
+                history,
+                'ai_classification',
+                () =>
+                    evaluateUnevaluatedJobs(
+                        repository,
+                        config.geminiApiKey,
+                        config.geminiModel,
+                        { log, error: log },
+                    ),
+                (result) => ({
+                    status: !config.geminiApiKey
+                        ? 'skipped'
+                        : result.failedCount > 0
+                          ? 'partial'
+                          : 'success',
+                    summary: {
+                        evaluated: result.evaluatedCount,
+                        failed: result.failedCount,
+                        remainingUnknown: result.remainingUnknownCount,
+                    },
+                }),
             );
             log(
                 `AI-klassificeringen är klar. Klassificerade: ${evaluation.evaluatedCount}, misslyckade: ${evaluation.failedCount}, återstående okategoriserade: ${evaluation.remainingUnknownCount}.`,
@@ -191,19 +258,38 @@ app.post('/api/ops/run-scraper-only', async (_req, res) => {
     try {
         const config = getConfig();
         const totals = await withDatabase(config.databasePath, (database) =>
-            runScraperIngestion(
-                config.searchQueries,
-                new JobsRepository(database),
-                log,
+            withRunHistory(
+                new RunHistoryRepository(database),
+                'fetch',
+                () =>
+                    runScraperIngestion(
+                        config.searchQueries,
+                        new JobsRepository(database),
+                        log,
+                    ),
+                (result) => ({
+                    status:
+                        result.failedProviderQueries > 0
+                            ? 'partial'
+                            : 'success',
+                    summary: {
+                        source: 'Alla källor',
+                        found: result.totals.found,
+                        added: result.totals.added,
+                        updated: result.totals.updated,
+                        skipped: result.totals.skipped,
+                        failed: result.failedProviderQueries,
+                    },
+                }),
             ),
         );
 
         log('--- Hämtning – totalt ---');
         log(
-            `Hittade totalt: ${totals.found}, tillagda: ${totals.added}, uppdaterade: ${totals.updated}`,
+            `Hittade totalt: ${totals.totals.found}, tillagda: ${totals.totals.added}, uppdaterade: ${totals.totals.updated}`,
         );
 
-        stream.complete({ success: true, totals });
+        stream.complete({ success: true, totals: totals.totals });
     } catch (error: unknown) {
         stream.fail(error);
     }
@@ -216,6 +302,21 @@ app.post('/api/ops/run-evaluator', async (_req, res) => {
     try {
         const config = getConfig();
         if (!config.geminiApiKey) {
+            await withDatabase(config.databasePath, (database) =>
+                withRunHistory(
+                    new RunHistoryRepository(database),
+                    'ai_classification',
+                    async () => null,
+                    () => ({
+                        status: 'skipped',
+                        summary: {
+                            evaluated: 0,
+                            failed: 0,
+                            reason: 'GEMINI_API_KEY saknas',
+                        },
+                    }),
+                ),
+            );
             res.status(400).json({
                 success: false,
                 error: 'Miljövariabeln GEMINI_API_KEY måste anges.',
@@ -225,15 +326,26 @@ app.post('/api/ops/run-evaluator', async (_req, res) => {
 
         stream = createOpsLogStream(res);
         const log = stream.log;
-        const evaluation = await withDatabase(
-            config.databasePath,
-            (database) =>
-                evaluateUnevaluatedJobs(
-                    new JobsRepository(database),
-                    config.geminiApiKey,
-                    config.geminiModel,
-                    { log, error: log },
-                ),
+        const evaluation = await withDatabase(config.databasePath, (database) =>
+            withRunHistory(
+                new RunHistoryRepository(database),
+                'ai_classification',
+                () =>
+                    evaluateUnevaluatedJobs(
+                        new JobsRepository(database),
+                        config.geminiApiKey,
+                        config.geminiModel,
+                        { log, error: log },
+                    ),
+                (result) => ({
+                    status: result.failedCount > 0 ? 'partial' : 'success',
+                    summary: {
+                        evaluated: result.evaluatedCount,
+                        failed: result.failedCount,
+                        remainingUnknown: result.remainingUnknownCount,
+                    },
+                }),
+            ),
         );
         log(
             `Klassificeringen är klar. Klassificerade: ${evaluation.evaluatedCount}, misslyckade: ${evaluation.failedCount}, återstående okategoriserade: ${evaluation.remainingUnknownCount}.`,

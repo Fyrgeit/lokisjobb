@@ -8,6 +8,7 @@ const runEvaluatorBtn = document.getElementById('runEvaluatorBtn');
 const runAnalyzerBtn = document.getElementById('runAnalyzerBtn');
 const clearLogsBtn = document.getElementById('clearLogsBtn');
 const terminalOutput = document.getElementById('terminalOutput');
+const runHistoryList = document.getElementById('runHistoryList');
 
 const tableSelect = document.getElementById('tableSelect');
 const refreshTableBtn = document.getElementById('refreshTableBtn');
@@ -112,6 +113,122 @@ async function fetchStats() {
     }
 }
 
+function formatRunSummary(entry) {
+    const summary = entry.summary || {};
+    if (entry.operation === 'fetch') {
+        const details = [
+            `${summary.found ?? 0} hittade`,
+            `${summary.added ?? 0} nya`,
+            `${summary.updated ?? 0} uppdaterade`,
+        ];
+        if (summary.skipped) details.push(`${summary.skipped} överhoppade`);
+        if (summary.failed) details.push(`${summary.failed} källfel`);
+        return `${summary.source || 'Alla källor'} — ${details.join(', ')}`;
+    }
+
+    const details = [
+        `${summary.evaluated ?? 0} klassificerade`,
+        `${summary.failed ?? 0} misslyckades`,
+    ];
+    if (summary.remainingUnknown !== undefined) {
+        details.push(`${summary.remainingUnknown} okategoriserade kvar`);
+    }
+    if (summary.reason) details.push(String(summary.reason));
+    return details.join(', ');
+}
+
+function renderRunHistory(entries) {
+    const shouldScrollToBottom =
+        runHistoryList.scrollHeight -
+            runHistoryList.scrollTop -
+            runHistoryList.clientHeight <
+        24;
+    runHistoryList.replaceChildren();
+    if (entries.length === 0) {
+        const empty = document.createElement('li');
+        empty.className = 'py-4 text-sm text-slate-500';
+        empty.textContent = 'Inga hämtningar eller AI-klassificeringar ännu.';
+        runHistoryList.append(empty);
+        return;
+    }
+
+    const labels = {
+        fetch: 'Hämtning',
+        ai_classification: 'AI-klassificering',
+    };
+    const statusLabels = {
+        running: 'Pågår',
+        success: 'Klar',
+        partial: 'Delvis',
+        failed: 'Misslyckades',
+        skipped: 'Överhoppad',
+    };
+
+    for (const entry of [...entries].reverse()) {
+        const item = document.createElement('li');
+        item.className =
+            'flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 py-4';
+
+        const content = document.createElement('div');
+        content.className = 'min-w-0';
+        const title = document.createElement('p');
+        title.className = 'text-sm font-semibold text-slate-100';
+        title.textContent = `${labels[entry.operation] || entry.operation} · ${formatRunSummary(entry)}`;
+        content.append(title);
+
+        if (entry.errorMessage) {
+            const error = document.createElement('p');
+            error.className = 'text-xs text-rose-400 mt-1 break-words';
+            error.textContent = entry.errorMessage;
+            content.append(error);
+        }
+
+        const metadata = document.createElement('div');
+        metadata.className =
+            'flex items-center gap-2 text-xs text-slate-400 shrink-0';
+        const time = document.createElement('time');
+        time.dateTime = entry.startedAt;
+        time.textContent = new Date(entry.startedAt).toLocaleString('sv-SE', {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+        });
+        metadata.append(time);
+        if (entry.durationMs !== null) {
+            const duration = document.createElement('span');
+            duration.textContent = `${(entry.durationMs / 1000).toFixed(1)} s`;
+            metadata.append(duration);
+        }
+        const status = document.createElement('span');
+        status.className =
+            entry.status === 'failed'
+                ? 'text-rose-400'
+                : entry.status === 'partial'
+                  ? 'text-amber-400'
+                  : entry.status === 'running'
+                    ? 'text-blue-400'
+                    : 'text-emerald-400';
+        status.textContent = statusLabels[entry.status] || entry.status;
+        metadata.append(status);
+
+        item.append(content, metadata);
+        runHistoryList.append(item);
+    }
+
+    if (shouldScrollToBottom) {
+        runHistoryList.scrollTop = runHistoryList.scrollHeight;
+    }
+}
+
+async function fetchRunHistory() {
+    try {
+        const res = await fetch('/api/ops/history');
+        const data = await parseResponse(res);
+        renderRunHistory(data.entries);
+    } catch (err) {
+        appendLog(`Det gick inte att läsa körningshistoriken: ${err.message}`, true);
+    }
+}
+
 async function runScraper() {
     runScraperBtn.disabled = true;
     runScraperBtn.textContent = 'Hämtar jobb och AI-klassificerar...';
@@ -131,6 +248,7 @@ async function runScraper() {
     } catch (err) {
         appendLog(`Begäran om körning misslyckades: ${err.message}`, true);
     } finally {
+        await fetchRunHistory();
         runScraperBtn.disabled = false;
         runScraperBtn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Hämta jobb och AI-klassificera`;
     }
@@ -155,6 +273,7 @@ async function runScraperOnly() {
     } catch (err) {
         appendLog(`Begäran om hämtning misslyckades: ${err.message}`, true);
     } finally {
+        await fetchRunHistory();
         runScraperOnlyBtn.disabled = false;
         runScraperOnlyBtn.querySelector('span').textContent = 'Hämta jobb';
     }
@@ -179,6 +298,7 @@ async function runEvaluator() {
     } catch (err) {
         appendLog(`Begäran om AI-klassificering misslyckades: ${err.message}`, true);
     } finally {
+        await fetchRunHistory();
         runEvaluatorBtn.disabled = false;
         runEvaluatorBtn.querySelector('span').textContent = 'AI-klassificera jobb';
     }
@@ -276,7 +396,8 @@ runScraperOnlyBtn.addEventListener('click', runScraperOnly);
 runEvaluatorBtn.addEventListener('click', runEvaluator);
 runAnalyzerBtn.addEventListener('click', runAnalyzer);
 refreshTableBtn.addEventListener('click', loadTableInspector);
-
 // Initial load
 fetchStats();
+fetchRunHistory();
+window.setInterval(fetchRunHistory, 30_000);
 loadTableInspector();

@@ -4,6 +4,10 @@ import { JobsRepository } from './database/jobs.js';
 import { evaluateUnevaluatedJobs } from './evaluator/job-evaluation.js';
 import { createProviders } from './providers/create-providers.js';
 import { runIngestion } from './scraper/run-ingestion.js';
+import {
+    RunHistoryRepository,
+    withRunHistory,
+} from './database/run-history.js';
 
 async function main(): Promise<void> {
     // The CLI composes the application: configuration, database, provider, and
@@ -12,29 +16,57 @@ async function main(): Promise<void> {
     const database = createDatabase(config.databasePath);
     const repository = new JobsRepository(database);
     const providers = createProviders();
+    const history = new RunHistoryRepository(database);
 
     try {
-        const totals = await runIngestion(
-            config.searchQueries,
-            providers,
-            repository,
-            {
-                onQuery: (query) =>
-                    console.log(`\n--- Söker efter: "${query}" ---`),
-                onProviderStart: (provider, query) =>
-                    console.log(`Söker efter "${query}" hos ${provider.name}...`),
-                onProviderComplete: (_provider, _query, summary) => {
-                    console.log(`Hittade ${summary.found} jobb`);
-                    console.log(`Lade till ${summary.added} nya jobb`);
-                    console.log(`Uppdaterade ${summary.updated} befintliga jobb`);
-                    console.log(`Hoppade över ${summary.skipped} ogiltiga jobb`);
+        let failedProviderQueries = 0;
+        const totals = await withRunHistory(
+            history,
+            'fetch',
+            () =>
+                runIngestion(
+                    config.searchQueries,
+                    providers,
+                    repository,
+                    {
+                        onQuery: (query) =>
+                            console.log(`\n--- Söker efter: "${query}" ---`),
+                        onProviderStart: (provider, query) =>
+                            console.log(
+                                `Söker efter "${query}" hos ${provider.name}...`,
+                            ),
+                        onProviderComplete: (_provider, _query, summary) => {
+                            console.log(`Hittade ${summary.found} jobb`);
+                            console.log(`Lade till ${summary.added} nya jobb`);
+                            console.log(
+                                `Uppdaterade ${summary.updated} befintliga jobb`,
+                            );
+                            console.log(
+                                `Hoppade över ${summary.skipped} ogiltiga jobb`,
+                            );
+                        },
+                        onProviderError: (provider, query, error) => {
+                            failedProviderQueries += 1;
+                            console.error(
+                                `${provider.name} misslyckades för sökningen "${query}":`,
+                                error instanceof Error
+                                    ? error.message
+                                    : error,
+                            );
+                        },
+                    },
+                ),
+            (result) => ({
+                status: failedProviderQueries > 0 ? 'partial' : 'success',
+                summary: {
+                    source: 'Alla källor',
+                    found: result.found,
+                    added: result.added,
+                    updated: result.updated,
+                    skipped: result.skipped,
+                    failed: failedProviderQueries,
                 },
-                onProviderError: (provider, query, error) =>
-                    console.error(
-                        `${provider.name} misslyckades för sökningen "${query}":`,
-                        error instanceof Error ? error.message : error,
-                    ),
-            },
+            }),
         );
 
         console.log(`\n--- Totalt ---`);
@@ -46,14 +78,31 @@ async function main(): Promise<void> {
 
         // Run AI Evaluation on unevaluated jobs
         console.log(`\n--- AI-klassificering ---`);
-        const evaluation = await evaluateUnevaluatedJobs(
-            repository,
-            config.geminiApiKey,
-            config.geminiModel,
-            {
-                log: (message) => console.log(message),
-                error: (message) => console.error(message),
-            },
+        const evaluation = await withRunHistory(
+            history,
+            'ai_classification',
+            () =>
+                evaluateUnevaluatedJobs(
+                    repository,
+                    config.geminiApiKey,
+                    config.geminiModel,
+                    {
+                        log: (message) => console.log(message),
+                        error: (message) => console.error(message),
+                    },
+                ),
+            (result) => ({
+                status: !config.geminiApiKey
+                    ? 'skipped'
+                    : result.failedCount > 0
+                      ? 'partial'
+                      : 'success',
+                summary: {
+                    evaluated: result.evaluatedCount,
+                    failed: result.failedCount,
+                    remainingUnknown: result.remainingUnknownCount,
+                },
+            }),
         );
         if (config.geminiApiKey) {
             console.log(

@@ -35,6 +35,17 @@ const schema = `
     );
 
     CREATE INDEX IF NOT EXISTS idx_job_links_url ON job_links(link_url);
+
+    CREATE TABLE IF NOT EXISTS run_history (
+        id INTEGER PRIMARY KEY,
+        operation TEXT NOT NULL CHECK (operation IN ('fetch', 'ai_classification')),
+        started_at TEXT NOT NULL,
+        completed_at TEXT,
+        duration_ms INTEGER,
+        status TEXT NOT NULL CHECK (status IN ('running', 'success', 'partial', 'failed', 'skipped')),
+        summary_json TEXT NOT NULL DEFAULT '{}',
+        error_message TEXT
+    );
 `;
 
 function quoteIdentifier(identifier: string): string {
